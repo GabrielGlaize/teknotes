@@ -108,4 +108,38 @@ final class TeknotesUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Modération"].waitForExistence(timeout: 5))
         shot("ios-legal")
     }
+
+    /// With the demo server (scripts/iphone.sh): signing in brings the seeded notebook, the
+    /// shared nights, the history and a merge to approve. Run with TEST_RUNNER_TEKNOTES_DEMO=1.
+    func testTheDemoAccountBringsTheSeededNotebook() throws {
+        guard ProcessInfo.processInfo.environment["TEKNOTES_DEMO"] == "1" else {
+            throw XCTSkip("Demande le serveur de démo : scripts/iphone.sh")
+        }
+        app.tabBars.buttons["Profil"].tap()
+        type("demo@teknotes.test", in: app.textFields["Email"])
+        type("teknotes-demo", in: app.secureTextFields["Mot de passe"])
+        app.buttons["Se connecter"].tap()
+        XCTAssertTrue(app.staticTexts["GABRIEL"].waitForExistence(timeout: 15) || app.staticTexts["Gabriel"].exists, "connecté")
+        let synced = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Synchronisé le'")).firstMatch
+        XCTAssertTrue(synced.waitForExistence(timeout: 20))
+
+        app.tabBars.buttons["Carnet"].tap()
+        XCTAssertTrue(app.staticTexts["Teknival du Nord"].waitForExistence(timeout: 10), "le carnet de démo est arrivé")
+        XCTAssertTrue(app.staticTexts["Week-end au bord de l'eau"].exists)
+        shot("demo-carnet")
+
+        app.tabBars.buttons["Annuaire"].tap()
+        app.staticTexts["Caisson Noir"].firstMatch.tap()
+        let sighting = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Moktar'")).firstMatch
+        XCTAssertTrue(sighting.waitForExistence(timeout: 10), "nuit partagée par un autre")
+        let approve = app.buttons["Approuver"]
+        XCTAssertTrue(approve.waitForExistence(timeout: 10), "une fusion attend un accord")
+        shot("demo-fiche")
+        approve.tap()
+        // The merge was applied: the proposal leaves the screen, and the copy's name is now an alias.
+        expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: approve)
+        waitForExpectations(timeout: 15)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Caisson Noir Sound'")).firstMatch.exists, "le nom du doublon est devenu un alias")
+        shot("demo-fusion")
+    }
 }

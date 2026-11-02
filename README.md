@@ -53,6 +53,14 @@ supabase stop
 
 Ouvrir dans les éditeurs : `iosApp/Teknotes.xcodeproj` dans Xcode, le dossier racine dans Android Studio.
 
+## Sur un vrai iPhone, avec des données de démo
+
+```bash
+scripts/iphone.sh install     # serveur + données de démo + compilation + installation
+```
+
+iPhone branché, déverrouillé, mode développeur activé, sur le même Wi-Fi que le Mac. Compte de démo : `demo@teknotes.test` / `teknotes-demo` (autres : brindille@, moktar@, galet@). Sans l'option `install`, le script prépare seulement le serveur.
+
 ## En mode debug
 
 - Les deux apps parlent au Supabase local : `http://10.0.2.2:55321` sur l'émulateur Android, `http://127.0.0.1:55321` sur le simulateur iOS. Pour un vrai téléphone Android : `./gradlew :androidApp:assembleDebug -Pteknotes.supabaseUrl=http://<IP du Mac>:55321`.

@@ -10,10 +10,12 @@ struct TeknotesApp: App {
     init() {
         Theme.registerFonts()
         #if DEBUG
-        // Local Supabase (supabase start) as seen from the simulator. The key is the public
-        // demo key every local Supabase uses.
+        // Local Supabase (supabase start). The simulator reaches it on 127.0.0.1; a real iPhone
+        // needs the Mac's address (scripts/iphone.sh passes it to the build). The key is the
+        // public demo key every local Supabase uses.
+        let url = Bundle.main.object(forInfoDictionaryKey: "TeknotesSupabaseURL") as? String ?? "http://127.0.0.1:55321"
         let config: SupabaseConfig? = SupabaseConfig(
-            url: "http://127.0.0.1:55321",
+            url: url,
             key: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
         )
         #else

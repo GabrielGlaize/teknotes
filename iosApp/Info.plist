@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Address of the Supabase server, set by the build (TEKNOTES_SUPABASE_URL). A real iPhone
+	     can't use 127.0.0.1: it reaches the Mac through its address on the Wi-Fi. -->
+	<key>TeknotesSupabaseURL</key>
+	<string>$(TEKNOTES_SUPABASE_URL)</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Pour joindre le serveur de test qui tourne sur ton Mac, sur le même Wi-Fi.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<!-- Only for the local Supabase during development; the production server uses HTTPS. -->

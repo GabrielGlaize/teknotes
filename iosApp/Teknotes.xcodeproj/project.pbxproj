@@ -294,6 +294,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				TEKNOTES_SUPABASE_URL = "http://127.0.0.1:55321";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lsqlite3",
@@ -331,6 +332,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
+				TEKNOTES_SUPABASE_URL = "http://127.0.0.1:55321";
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-lsqlite3",
