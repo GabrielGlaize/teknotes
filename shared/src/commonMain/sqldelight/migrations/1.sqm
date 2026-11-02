@@ -1,0 +1,3 @@
+-- Remembers what the server has, so a deletion made on another phone can be followed.
+ALTER TABLE night ADD COLUMN synced INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE night_entry ADD COLUMN synced INTEGER NOT NULL DEFAULT 0;

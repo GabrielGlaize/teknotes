@@ -21,13 +21,13 @@ class NotebookRepository internal constructor(
 ) {
     private val nightMapper = {
             id: String, date: String, department: String?, title: String, comment: String, shared: Long,
-            _: Long, _: Long, entryCount: Long ->
+            entryCount: Long ->
         Night(id, date, department, title, comment, shared != 0L, entryCount.toInt())
     }
 
     private val entryMapper = {
-            id: String, nightId: String, soundsystemId: String?, artistId: String?, _: String, rating: Long?,
-            comment: String, _: Long, label: String ->
+            id: String, nightId: String, soundsystemId: String?, artistId: String?, rating: Long?,
+            comment: String, label: String ->
         NightEntry(id, nightId, soundsystemId, artistId, label, rating?.toInt(), comment)
     }
 

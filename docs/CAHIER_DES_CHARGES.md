@@ -16,7 +16,7 @@ Décisions prises au QCM du 29 octobre 2026. Toute évolution de ce document se 
 
 ## 2. Périmètre de la V1
 
-État au 30 octobre 2026 : étapes 1, 2 et 3 de la section 9 terminées (voir « Où on en est »).
+État au 30 octobre 2026 : le code de la V1 est terminé, hors connexion Apple et Google (voir « Où on en est »).
 
 | Dans la V1 | Plus tard (V2 et après) |
 | --- | --- |
@@ -42,19 +42,21 @@ Trois onglets : **Carnet · Annuaire · Profil**.
   - Une soirée commence le soir et finit au matin : avant midi, « J'y suis » rattache à la soirée de la veille.
 - Fiche soirée : date, département, liste des soundsystems et artistes entendus, note de 1 à 5 et commentaire par entrée, commentaire général, partage (privé / partagé).
 - **Ajout en 2 appuis** : 1) champ de recherche dans l'annuaire, 2) toucher un résultat. Si rien ne correspond, « Créer "…" » en bas de la liste.
-- Dictée vocale dans les champs texte : celle du clavier natif, sur les deux téléphones.
+- Dictée vocale : un bouton micro dans la recherche et les commentaires (reconnaissance du système du téléphone), en plus de celle du clavier.
 
 ### Annuaire
 - Recherche tolérante aux fautes et aux accents, qui marche aussi hors ligne (« teknokrat » trouve « Teknokrates »).
 - Filtres : soundsystems / artistes, style, région d'origine.
-- Fiche soundsystem : nom, alias, région d'origine, membres, liens, styles, historique des modifications, bouton « Signaler », bouton « Proposer une fusion ».
+- Fiche soundsystem : nom, alias, région d'origine, membres, liens, styles, fusions proposées, nuits partagées où il apparaît, et avec un compte : modifier, voir l'historique, signaler un doublon, signaler un problème.
 - Fiche artiste : nom, alias, soundsystems, liens, styles, mêmes actions.
+- Nuits partagées : date, département et pseudo, jamais les siennes. C'est là que le bouton « Partager » d'une nuit prend effet ; on peut y bloquer quelqu'un.
 - Création : en tapant le nom, l'app propose les fiches proches (« Tu cherches peut-être Teknokrates ? ») avant de créer.
 
 ### Profil
 - Sans compte : explication courte, boutons de connexion.
-- Avec compte : pseudo, état de la synchronisation, déconnexion, **suppression du compte**, utilisateurs bloqués, conditions d'utilisation, contact.
-- Dans tous les cas : affichage (système / sombre / clair), mode « champ » (sombre, accent atténué, texte plus grand ; la luminosité du téléphone n'est pas modifiée), export du carnet.
+- Choix du pseudo : acceptation obligatoire des conditions d'utilisation.
+- Avec compte : pseudo, état de la synchronisation, personnes bloquées, déconnexion, **suppression du compte**.
+- Dans tous les cas : affichage (système / sombre / clair), mode « champ » (sombre, accent atténué, texte plus grand ; la luminosité du téléphone n'est pas modifiée), export du carnet, conditions d'utilisation, confidentialité, contact.
 
 ## 4. Données
 
@@ -69,6 +71,7 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | Fusion proposée | fiche gardée, fiche absorbée, auteur, votes |
 | Profil | identifiant du compte, pseudo (unique), date |
 | Blocage | qui bloque, qui est bloqué |
+| Vote de fusion | proposition, votant |
 
 ### Carnet (sur le téléphone, copié sur Supabase seulement si le compte existe)
 | Entité | Champs |
@@ -84,8 +87,9 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 
 - Toute personne connectée crée et modifie les fiches. Chaque modification crée une révision ; n'importe qui peut revenir à une version précédente.
 - En cas de conflit (deux modifications hors ligne), **la dernière modification gagne** ; l'autre reste dans l'historique.
-- **Doublons** : suggestions pendant la saisie ; une fusion proposée s'applique quand 3 personnes différentes l'ont approuvée (seuil ajustable).
-- **Abus** : une fiche signalée par 3 personnes différentes est masquée en attendant une vérification. Un utilisateur bloqué disparaît de l'historique visible de celui qui l'a bloqué.
+- **Doublons** : suggestions pendant la saisie ; une fusion proposée s'applique quand 3 personnes différentes l'ont approuvée, proposant compris (seuil ajustable). La fiche gardée reprend le nom, les alias, les styles, les liens et les membres de l'autre ; les carnets la suivent. La fiche absorbée reste masquée sur le serveur, pour pouvoir annuler à la main.
+- **Abus** : une fiche signalée par 3 personnes différentes est masquée en attendant une vérification (procédure dans `docs/AVANT_DIFFUSION.md`). Un utilisateur bloqué disparaît de l'historique et des nuits partagées visibles de celui qui l'a bloqué.
+- **Historique** : ne contient que les changements de contenu. Rétablir une version crée une nouvelle modification : rien n'est perdu.
 - Le pseudo est la seule information publique d'un contributeur.
 
 ## 6. Technique
@@ -98,7 +102,7 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | Android | Jetpack Compose, Android 8 minimum (`androidApp/`) |
 | Écrans | MVVM avec un état immuable |
 | Back-end | Supabase : Postgres, comptes, règles d'accès (RLS), migrations versionnées (`supabase/`) |
-| Synchro | File d'attente locale des modifications, envoyée dès qu'il y a un compte et du réseau ; la dernière modification reçue gagne. Une fiche ou une nuit encore en attente n'est jamais écrasée par la copie du serveur. V1 : une suppression faite sur un autre téléphone n'est pas répercutée |
+| Synchro | File d'attente locale des modifications, envoyée dès qu'il y a un compte et du réseau ; la dernière modification reçue gagne. Une fiche ou une nuit encore en attente n'est jamais écrasée par la copie du serveur. Sans réseau, nouvel essai automatique de plus en plus espacé (30 s à 5 min), et au retour dans l'app. Une suppression faite sur un autre téléphone est répercutée |
 | Connexion par code | Un code à 6 chiffres plutôt qu'un lien : rien à ouvrir, même parcours sur les deux téléphones (`supabase/templates/code.html`) |
 | Suppression de compte | Fonction serveur `supabase/functions/delete-account` : le profil et les nuits partent avec le compte, les fiches restent sans auteur, le carnet reste sur le téléphone |
 | Tests | Cœur partagé bien couvert, quelques parcours d'écran |
@@ -132,8 +136,10 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | Étape | État |
 | --- | --- |
 | 1. Fondations | Fait |
-| 2. Carnet complet hors ligne | Fait : nuit (titre, souvenirs, partage, département), notes et commentaires, création avec doublons suggérés, fiches, filtres par style, thèmes, mode « champ », export |
-| 3. Comptes et synchronisation | Fait pour l'email (mot de passe et code). **Reste : Apple et Google**, qui demandent les comptes développeur et les identifiants OAuth |
-| 4. Annuaire partagé | Partiel : création envoyée et annuaire reçu, historique côté serveur. Reste : modifier une fiche, voir et rétablir l'historique, fusions |
-| 5. Modération | Partiel : suppression du compte, règles et masquage côté serveur. Reste : écrans de signalement et de blocage, conditions d'utilisation, contact |
-| 6. Finitions | À faire : accessibilité, icônes, projet Supabase de production, version de test |
+| 2. Carnet complet hors ligne | Fait |
+| 3. Comptes et synchronisation | Fait pour l'email (mot de passe et code). **Apple et Google écartés pour l'instant** |
+| 4. Annuaire partagé | Fait : modifier, historique, rétablir, fusions à trois |
+| 5. Modération | Fait : signalement, blocage, conditions d'utilisation, confidentialité, suppression du compte |
+| 6. Finitions | Fait : icônes, accessibilité (taille de texte, libellés lecteur d'écran, contrastes, cibles tactiles), dictée. **Reste la mise en production** |
+
+Ce qui reste à faire demande un compte, une décision ou de l'argent : `docs/AVANT_DIFFUSION.md`.

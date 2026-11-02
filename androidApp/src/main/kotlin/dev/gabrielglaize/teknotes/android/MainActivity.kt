@@ -17,6 +17,12 @@ import dev.gabrielglaize.teknotes.android.ui.TeknotesRoot
 import dev.gabrielglaize.teknotes.android.ui.TeknotesTheme
 
 class MainActivity : ComponentActivity() {
+    override fun onStart() {
+        super.onStart()
+        // Back in the app: whatever was waiting for the network gets another chance.
+        (application as TeknotesApplication).teknotes.sync.schedule()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)

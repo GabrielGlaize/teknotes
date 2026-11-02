@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct TeknotesApp: App {
     private let teknotes: Teknotes
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         Theme.registerFonts()
@@ -29,6 +30,10 @@ struct TeknotesApp: App {
     var body: some Scene {
         WindowGroup {
             RootView(teknotes: teknotes)
+                .onChange(of: scenePhase) { _, phase in
+                    // Back in the app: whatever was waiting for the network gets another chance.
+                    if phase == .active { teknotes.sync.schedule() }
+                }
         }
     }
 }

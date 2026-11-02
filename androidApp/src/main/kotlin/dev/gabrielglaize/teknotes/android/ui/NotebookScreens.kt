@@ -40,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -131,6 +133,7 @@ fun NightScreen(teknotes: Teknotes, nightId: String, navigator: Navigator) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     placeholder = { Text("Soundsystem ou artiste entendu") },
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = { DictationButton(onText = model::search) },
                     singleLine = true,
                 )
             }
@@ -220,7 +223,10 @@ private fun EntryRow(entry: NightEntry, model: NightViewModel) {
             (1..5).forEach { star ->
                 Text(
                     if ((entry.rating ?: 0) >= star) "●" else "○",
-                    Modifier.clickable { model.rate(entry, star) }.padding(horizontal = 6.dp, vertical = 4.dp),
+                    Modifier
+                        .clickable(onClickLabel = "Noter $star sur 5") { model.rate(entry, star) }
+                        .semantics { contentDescription = "Note $star sur 5" + if (entry.rating == star) ", choisie" else "" }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                     color = MaterialTheme.colorScheme.primary,
                     fontSize = 24.sp,
                 )
@@ -234,6 +240,12 @@ private fun EntryRow(entry: NightEntry, model: NightViewModel) {
             },
             modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Un mot sur ce set") },
+            trailingIcon = {
+                DictationButton(onText = { spoken ->
+                    comment = listOf(comment, spoken).filter { it.isNotBlank() }.joinToString(" ")
+                    model.comment(entry, comment)
+                })
+            },
         )
         HorizontalDivider(Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.outline)
     }
@@ -263,6 +275,12 @@ private fun NightFields(night: Night, model: NightViewModel) {
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Souvenirs de la nuit") },
             minLines = 3,
+            trailingIcon = {
+                DictationButton(onText = { spoken ->
+                    comment = listOf(comment, spoken).filter { it.isNotBlank() }.joinToString(" ")
+                    model.edit(comment = comment)
+                })
+            },
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {

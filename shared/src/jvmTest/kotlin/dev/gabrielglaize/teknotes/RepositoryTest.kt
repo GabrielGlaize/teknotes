@@ -177,4 +177,70 @@ class RepositoryTest {
         assertFalse(app.account.canContribute)
         assertEquals(AccountState.Unavailable, app.account.state.value)
     }
+
+    @Test
+    fun editingAnArtistSendsOnlyWhatChangedInItsSoundsystems() = runTest {
+        val app = teknotes()
+        val kept = app.directory.createSoundsystem("Gardé", emptyList(), null, emptyList(), emptyList())
+        val left = app.directory.createSoundsystem("Quitté", emptyList(), null, emptyList(), emptyList())
+        val joined = app.directory.createSoundsystem("Rejoint", emptyList(), null, emptyList(), emptyList())
+        val artist = app.directory.createArtist("Dj Galet", emptyList(), emptyList(), emptyList(), listOf(kept.id, left.id))
+
+        app.directory.updateArtist(artist.id, "  Dj Galet Bis ", listOf("Galet", " "), listOf(Style.DUB), emptyList(), listOf(kept.id, joined.id))
+
+        assertEquals("Dj Galet Bis", app.directory.artist(artist.id)?.name)
+        assertEquals(listOf("Galet"), app.directory.artist(artist.id)?.aliases)
+        assertEquals(setOf("Gardé", "Rejoint"), app.directory.soundsystemsOf(artist.id).map { it.name }.toSet())
+        assertTrue("membership:${left.id}:${artist.id}" in app.pending())
+        assertTrue("membership:${joined.id}:${artist.id}" in app.pending())
+    }
+
+    @Test
+    fun aNameIsRequiredToEditAnEntry() = runTest {
+        val app = teknotes()
+        val soundsystem = app.directory.createSoundsystem("Son", emptyList(), null, emptyList(), emptyList())
+        assertFailsWith<IllegalArgumentException> {
+            app.directory.updateSoundsystem(soundsystem.id, "  ", emptyList(), null, emptyList(), emptyList())
+        }
+    }
+
+    @Test
+    fun savingWithoutChangeDoesNotQueueAnything() = runTest {
+        val app = teknotes()
+        val night = app.notebook.checkIn("59")
+        val before = app.pending().size
+        app.notebook.updateNight(night.id, "59", "", "", false)
+        assertEquals(before, app.pending().size)
+        assertEquals(before, app.sync.state.value.pending)
+    }
+
+    @Test
+    fun aPhoneWithAnOlderDatabaseIsMigratedWithoutLosingItsNotebook() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        driver.execute(null, "CREATE TABLE night (id TEXT NOT NULL PRIMARY KEY, date TEXT NOT NULL, department TEXT, title TEXT NOT NULL DEFAULT '', comment TEXT NOT NULL DEFAULT '', shared INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)", 0)
+        driver.execute(null, "CREATE TABLE night_entry (id TEXT NOT NULL PRIMARY KEY, night_id TEXT NOT NULL, soundsystem_id TEXT, artist_id TEXT, label TEXT NOT NULL DEFAULT '', rating INTEGER, comment TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)", 0)
+        driver.execute(null, "INSERT INTO night (id, date, created_at, updated_at) VALUES ('old', '2026-10-01', 0, 0)", 0)
+
+        TeknotesDatabase.Schema.migrate(driver, 1, TeknotesDatabase.Schema.version)
+
+        val synced = driver.executeQuery(null, "SELECT synced FROM night WHERE id = 'old'", { cursor ->
+            cursor.next()
+            app.cash.sqldelight.db.QueryResult.Value(cursor.getLong(0))
+        }, 0).value
+        assertEquals(0L, synced)
+    }
+
+    @Test
+    fun withoutNetworkTheChangesWaitAndTheMessageIsPlain() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        TeknotesDatabase.Schema.create(driver)
+        val app = Teknotes(driver, SupabaseConfig("http://127.0.0.1:1", "cle"), { kotlin.time.Clock.System.now() }, inMemorySession = true)
+        app.notebook.checkIn("59")
+
+        val error = assertFailsWith<TeknotesException> { app.sync.syncNow() }
+
+        assertEquals("Pas de réseau. Réessaie quand tu captes.", error.message)
+        assertEquals(1, app.sync.state.value.pending)
+        assertEquals("Pas de réseau. Réessaie quand tu captes.", app.sync.state.value.error)
+    }
 }

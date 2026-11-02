@@ -25,7 +25,7 @@ object Flyer {
     val pink = Color(0xFFFF4FA3)
     val pinkOnLight = Color(0xFFC81E72)
     /** Field mode: the accent dimmed so the screen doesn't light up a dark field. */
-    val pinkDimmed = Color(0xFF9C3A68)
+    val pinkDimmed = Color(0xFFB8558A)
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -105,7 +105,7 @@ private fun Typography.scaled(factor: Float): Typography = copy(
 @Composable
 fun TeknotesTheme(dark: Boolean = isSystemInDarkTheme(), fieldMode: Boolean = false, content: @Composable () -> Unit) {
     val colors = when {
-        fieldMode -> darkColors.copy(primary = Flyer.pinkDimmed, onPrimary = Color.Black, onSurfaceVariant = Color(0xFF6F6C66))
+        fieldMode -> darkColors.copy(primary = Flyer.pinkDimmed, onPrimary = Color.Black, onSurfaceVariant = Color(0xFF8A8780))
         dark -> darkColors
         else -> lightColors
     }

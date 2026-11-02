@@ -2,7 +2,7 @@
 
 Carnet de poche pour garder la trace des soundsystems et des artistes croisés en soirée tekno. L'annuaire est rempli par ceux qui les croisent, sans personne pour valider chaque ajout.
 
-Ce que fait la V1 et pourquoi : [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md).
+Ce que fait la V1 et pourquoi : [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md). Ce qu'il reste à faire avant de la diffuser : [`docs/AVANT_DIFFUSION.md`](docs/AVANT_DIFFUSION.md).
 
 ## Organisation
 
@@ -38,7 +38,7 @@ TEKNOTES_MAIL_URL=http://127.0.0.1:55324 \
 
 # App Android : build, puis installation sur l'émulateur ou le téléphone branché
 ./gradlew :androidApp:assembleDebug
-adb install -r androidApp/build/outputs/apk/debug/androidApp-debug.apk
+adb install -r androidApp/build.nosync/outputs/apk/debug/androidApp-debug.apk
 
 # App iPhone : build pour un simulateur arm64 (le framework Kotlin est compilé par Xcode)
 cd iosApp && xcodebuild -project Teknotes.xcodeproj -scheme Teknotes \

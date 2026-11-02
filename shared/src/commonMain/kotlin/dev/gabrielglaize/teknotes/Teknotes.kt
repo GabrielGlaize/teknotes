@@ -32,7 +32,8 @@ class Teknotes internal constructor(
     val notebook = NotebookRepository(queries, outbox, clock)
     val settings = SettingsRepository(queries)
     val sync: Sync = Sync(remote, queries, directory, notebook, { account }, scope, clock)
-    val account = Account(remote, scope, onSignedIn = { sync.accountReady() })
+    val account = Account(remote, scope, onSignedIn = { sync.accountReady() }, onSignedOut = { sync.accountGone() })
+    val community = Community(remote, directory) { account }
 
     init {
         outbox.onChange = { sync.schedule() }

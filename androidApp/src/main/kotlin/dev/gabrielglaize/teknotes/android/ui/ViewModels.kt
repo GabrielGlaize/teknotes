@@ -4,10 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.gabrielglaize.teknotes.AccountState
 import dev.gabrielglaize.teknotes.Artist
+import dev.gabrielglaize.teknotes.BlockedUser
 import dev.gabrielglaize.teknotes.DirectoryHit
 import dev.gabrielglaize.teknotes.Night
 import dev.gabrielglaize.teknotes.NightEntry
+import dev.gabrielglaize.teknotes.MergeProposal
 import dev.gabrielglaize.teknotes.Preferences
+import dev.gabrielglaize.teknotes.ReportReason
+import dev.gabrielglaize.teknotes.Revision
+import dev.gabrielglaize.teknotes.Sighting
 import dev.gabrielglaize.teknotes.Soundsystem
 import dev.gabrielglaize.teknotes.Style
 import dev.gabrielglaize.teknotes.SyncState
@@ -113,7 +118,7 @@ class DirectoryViewModel(private val teknotes: Teknotes) : ViewModel() {
     fun filter(style: Style?) = filters.update { it.copy(style = if (it.style == style) null else style) }
 }
 
-/** Form to add a soundsystem or an artist, with lookalikes shown before creating a duplicate. */
+/** Form to add or edit a soundsystem or an artist, with lookalikes shown before creating a duplicate. */
 data class CreateState(
     val kind: DirectoryHit.Kind,
     val name: String,
@@ -125,24 +130,51 @@ data class CreateState(
     val lookalikes: List<DirectoryHit> = emptyList(),
 )
 
-class CreateViewModel(private val teknotes: Teknotes, kind: DirectoryHit.Kind, name: String) : ViewModel() {
-    private val mutableState = MutableStateFlow(CreateState(kind, name, lookalikes = teknotes.directory.lookalikes(name)))
+class CreateViewModel(
+    private val teknotes: Teknotes,
+    kind: DirectoryHit.Kind,
+    name: String,
+    private val editedId: String? = null,
+) : ViewModel() {
+    private val mutableState = MutableStateFlow(
+        if (editedId == null) CreateState(kind, name, lookalikes = teknotes.directory.lookalikes(name)) else existing(kind, editedId),
+    )
     val state: StateFlow<CreateState> = mutableState.asStateFlow()
 
     val soundsystems: StateFlow<List<Soundsystem>> = teknotes.directory.soundsystems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun update(change: (CreateState) -> CreateState) = mutableState.update { current ->
-        val next = change(current)
-        if (next.name != current.name) next.copy(lookalikes = teknotes.directory.lookalikes(next.name)) else next
+    private fun existing(kind: DirectoryHit.Kind, id: String): CreateState = if (kind == DirectoryHit.Kind.SOUNDSYSTEM) {
+        val entry = teknotes.directory.soundsystem(id)
+        CreateState(kind, entry?.name.orEmpty(), entry?.aliases.orEmpty().joinToString(", "), entry?.department, entry?.styles.orEmpty().toSet(), entry?.links.orEmpty().joinToString("\n"))
+    } else {
+        val entry = teknotes.directory.artist(id)
+        CreateState(
+            kind, entry?.name.orEmpty(), entry?.aliases.orEmpty().joinToString(", "), null, entry?.styles.orEmpty().toSet(), entry?.links.orEmpty().joinToString("\n"),
+            teknotes.directory.soundsystemsOf(id).map { it.id }.toSet(),
+        )
     }
 
-    /** Saves and returns what was created, as a hit the notebook can add. */
+    fun update(change: (CreateState) -> CreateState) = mutableState.update { current ->
+        val next = change(current)
+        // While editing, the entry itself isn't a duplicate to warn about.
+        if (editedId == null && next.name != current.name) next.copy(lookalikes = teknotes.directory.lookalikes(next.name)) else next
+    }
+
+    /** Saves and returns the entry, as a hit the notebook can add. */
     fun save(): DirectoryHit {
         val form = state.value
         val aliases = form.aliases.split(",")
         val links = form.links.split("\n")
         val styles = Style.entries.filter { it in form.styles }
+        if (editedId != null) {
+            if (form.kind == DirectoryHit.Kind.SOUNDSYSTEM) {
+                teknotes.directory.updateSoundsystem(editedId, form.name, aliases, form.department, styles, links)
+            } else {
+                teknotes.directory.updateArtist(editedId, form.name, aliases, styles, links, form.soundsystemIds.toList())
+            }
+            return DirectoryHit(editedId, form.kind, form.name.trim(), null, 100)
+        }
         return if (form.kind == DirectoryHit.Kind.SOUNDSYSTEM) {
             val created = teknotes.directory.createSoundsystem(form.name, aliases, form.department, styles, links)
             DirectoryHit(created.id, DirectoryHit.Kind.SOUNDSYSTEM, created.name, null, 100)
@@ -153,12 +185,191 @@ class CreateViewModel(private val teknotes: Teknotes, kind: DirectoryHit.Kind, n
     }
 }
 
+/** What a directory entry shows: its content, and what the community says about it. */
+data class Fiche(
+    val name: String,
+    val department: String?,
+    val styles: List<Style>,
+    val aliases: List<String>,
+    val links: List<String>,
+    /** Members of a soundsystem, or soundsystems of an artist: id and name. */
+    val related: List<Pair<String, String>>,
+)
+
+data class FicheCommunity(
+    val sightings: List<Sighting> = emptyList(),
+    val proposals: List<MergeProposal> = emptyList(),
+    val busy: Boolean = false,
+    val message: String? = null,
+)
+
+class FicheViewModel(private val teknotes: Teknotes, val kind: DirectoryHit.Kind, val id: String) : ViewModel() {
+    val fiche: StateFlow<Fiche?> = combine(teknotes.directory.soundsystems(), teknotes.directory.artists()) { _, _ -> read() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), read())
+
+    val account: StateFlow<AccountState> = teknotes.account.state
+
+    private val mutableCommunity = MutableStateFlow(FicheCommunity())
+    val community: StateFlow<FicheCommunity> = mutableCommunity.asStateFlow()
+
+    private val mergeQuery = MutableStateFlow("")
+    val mergeSearch: StateFlow<String> = mergeQuery.asStateFlow()
+    val mergeResults: StateFlow<List<DirectoryHit>> = mergeQuery.map { query ->
+        if (query.isBlank()) emptyList() else teknotes.directory.search(query).filter { it.kind == kind && it.id != id }.take(6)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    init {
+        refresh()
+    }
+
+    private fun read(): Fiche? = if (kind == DirectoryHit.Kind.SOUNDSYSTEM) {
+        teknotes.directory.soundsystem(id)?.let { entry ->
+            Fiche(entry.name, entry.department, entry.styles, entry.aliases, entry.links, teknotes.directory.membersOf(id).map { it.id to it.name })
+        }
+    } else {
+        teknotes.directory.artist(id)?.let { entry ->
+            Fiche(entry.name, null, entry.styles, entry.aliases, entry.links, teknotes.directory.soundsystemsOf(id).map { it.id to it.name })
+        }
+    }
+
+    fun refresh() {
+        viewModelScope.launch {
+            try {
+                val sightings = teknotes.community.sightings(kind, id)
+                val proposals = teknotes.community.mergeProposals(kind, id)
+                mutableCommunity.update { it.copy(sightings = sightings, proposals = proposals) }
+            } catch (_: TeknotesException) {
+                // Offline: the entry still shows, without what needs the server.
+            }
+        }
+    }
+
+    private fun run(done: String? = null, action: suspend () -> Unit) {
+        mutableCommunity.update { it.copy(busy = true, message = null) }
+        viewModelScope.launch {
+            try {
+                action()
+                mutableCommunity.update { it.copy(busy = false, message = done) }
+                refresh()
+            } catch (error: TeknotesException) {
+                mutableCommunity.update { it.copy(busy = false, message = error.message) }
+            }
+        }
+    }
+
+    fun searchMerge(text: String) {
+        mergeQuery.value = text
+    }
+
+    fun proposeMerge(absorbed: DirectoryHit) = run("Fusion proposée. Il faut deux autres approbations.") {
+        // What's created offline must reach the server before it can be merged.
+        teknotes.sync.syncNow()
+        teknotes.community.proposeMerge(kind, id, absorbed.id)
+        mergeQuery.value = ""
+    }
+
+    fun approve(proposal: MergeProposal) = run {
+        if (teknotes.community.approveMerge(proposal.id)) teknotes.sync.syncNow()
+    }
+
+    fun report(reason: ReportReason) = run("Merci, c'est noté.") {
+        teknotes.community.report(kind, id, reason)
+        teknotes.sync.schedule()
+    }
+
+    fun block(sighting: Sighting) = run("${sighting.pseudo} est bloqué.") { teknotes.community.block(sighting.userId) }
+}
+
+data class HistoryState(
+    val revisions: List<Revision> = emptyList(),
+    val loading: Boolean = true,
+    val message: String? = null,
+)
+
+class HistoryViewModel(private val teknotes: Teknotes, private val kind: DirectoryHit.Kind, private val id: String) : ViewModel() {
+    private val mutableState = MutableStateFlow(HistoryState())
+    val state: StateFlow<HistoryState> = mutableState.asStateFlow()
+    val account: StateFlow<AccountState> = teknotes.account.state
+
+    init {
+        load()
+    }
+
+    private fun load() {
+        viewModelScope.launch {
+            try {
+                // A local edit not sent yet must be part of the history shown.
+                if (teknotes.account.state.value is AccountState.SignedIn) teknotes.sync.syncNow()
+                mutableState.update { it.copy(revisions = teknotes.community.history(kind, id), loading = false) }
+            } catch (error: TeknotesException) {
+                mutableState.update { it.copy(loading = false, message = error.message) }
+            }
+        }
+    }
+
+    fun restore(revision: Revision) {
+        viewModelScope.launch {
+            try {
+                teknotes.community.restore(kind, id, revision)
+                mutableState.update { it.copy(message = "Version rétablie.") }
+                load()
+            } catch (error: TeknotesException) {
+                mutableState.update { it.copy(message = error.message) }
+            }
+        }
+    }
+
+    fun block(authorId: String) {
+        viewModelScope.launch {
+            try {
+                teknotes.community.block(authorId)
+                load()
+            } catch (error: TeknotesException) {
+                mutableState.update { it.copy(message = error.message) }
+            }
+        }
+    }
+}
+
+class BlockedViewModel(private val teknotes: Teknotes) : ViewModel() {
+    private val mutableUsers = MutableStateFlow<List<BlockedUser>>(emptyList())
+    val users: StateFlow<List<BlockedUser>> = mutableUsers.asStateFlow()
+    private val mutableMessage = MutableStateFlow<String?>(null)
+    val message: StateFlow<String?> = mutableMessage.asStateFlow()
+
+    init {
+        load()
+    }
+
+    private fun load() {
+        viewModelScope.launch {
+            try {
+                mutableUsers.value = teknotes.community.blockedUsers()
+            } catch (error: TeknotesException) {
+                mutableMessage.value = error.message
+            }
+        }
+    }
+
+    fun unblock(user: BlockedUser) {
+        viewModelScope.launch {
+            try {
+                teknotes.community.unblock(user.id)
+                load()
+            } catch (error: TeknotesException) {
+                mutableMessage.value = error.message
+            }
+        }
+    }
+}
+
 data class AccountForm(
     val email: String = "",
     val password: String = "",
     val code: String = "",
     val codeSent: Boolean = false,
     val pseudo: String = "",
+    val termsAccepted: Boolean = false,
     val busy: Boolean = false,
     val message: String? = null,
 )

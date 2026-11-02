@@ -78,9 +78,12 @@ struct NightView: View {
                         systemImage: "mappin.and.ellipse"
                     )
                 }
-                TextField("Soundsystem ou artiste entendu", text: $model.query)
-                    .textInputAutocapitalization(.words)
-                    .autocorrectionDisabled()
+                HStack {
+                    TextField("Soundsystem ou artiste entendu", text: $model.query)
+                        .textInputAutocapitalization(.words)
+                        .autocorrectionDisabled()
+                    DictationButton { model.query = $0 }
+                }
             }
 
             let query = model.query.trimmingCharacters(in: .whitespaces)
@@ -115,9 +118,12 @@ struct NightView: View {
             Section {
                 TextField("Titre (facultatif)", text: $title)
                     .onChange(of: title) { _, value in model.edit(title: value) }
-                TextField("Souvenirs de la nuit", text: $memories, axis: .vertical)
-                    .lineLimit(3...8)
-                    .onChange(of: memories) { _, value in model.edit(comment: value) }
+                HStack(alignment: .top) {
+                    TextField("Souvenirs de la nuit", text: $memories, axis: .vertical)
+                        .lineLimit(3...8)
+                        .onChange(of: memories) { _, value in model.edit(comment: value) }
+                    DictationButton { memories = [memories, $0].filter { !$0.isEmpty }.joined(separator: " ") }
+                }
                 Toggle(isOn: Binding(get: { model.night?.shared ?? false }, set: { model.edit(shared: $0) })) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Partager cette nuit").font(Theme.body(16, weight: 600))
@@ -149,7 +155,7 @@ struct NightView: View {
             Text("Elle disparaît de ton carnet, avec tout ce que tu y as noté.")
         }
         .sheet(item: Binding(get: { creating.map(CreationName.init) }, set: { creating = $0?.name })) { item in
-            CreateView(teknotes: model.teknotes, kind: .soundsystem, name: item.name, forNight: true) { hit in
+            CreateView(teknotes: model.teknotes, kind: .soundsystem, name: item.name, mode: .createForNight) { hit in
                 model.add(hit)
             }
         }
@@ -175,14 +181,19 @@ private struct EntryRow: View {
                     Image(systemName: (entry.rating?.int32Value ?? 0) >= star ? "circle.fill" : "circle")
                         .font(.system(size: 22))
                         .foregroundStyle(Theme.pink)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                         .onTapGesture { model.rate(entry, Int32(star)) }
+                        .accessibilityLabel("Note \(star) sur 5")
+                        .accessibilityAddTraits(.isButton)
                 }
             }
-            TextField("Un mot sur ce set", text: $comment, axis: .vertical)
-                .font(Theme.body(15))
-                .onChange(of: comment) { _, value in model.comment(entry, value) }
+            HStack(alignment: .top) {
+                TextField("Un mot sur ce set", text: $comment, axis: .vertical)
+                    .font(Theme.body(15))
+                    .onChange(of: comment) { _, value in model.comment(entry, value) }
+                DictationButton { comment = [comment, $0].filter { !$0.isEmpty }.joined(separator: " ") }
+            }
         }
         .onAppear { comment = entry.comment }
     }

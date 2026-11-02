@@ -15,6 +15,7 @@ final class AccountModel {
     var code = ""
     var codeSent = false
     var pseudo = ""
+    var termsAccepted = false
     private(set) var busy = false
     private(set) var message: String?
     @ObservationIgnored private var watchers: [Watcher] = []
@@ -125,6 +126,14 @@ struct ProfileView: View {
                 } header: {
                     FlyerLabel(text: "Mon carnet")
                 }
+
+                Section {
+                    NavigationLink("Conditions d'utilisation") { LegalView(privacy: false) }
+                    NavigationLink("Confidentialité") { LegalView(privacy: true) }
+                    Text("Contact : \(Legal.shared.CONTACT_EMAIL)").font(Theme.body(14)).foregroundStyle(Theme.mute).textSelection(.enabled)
+                } header: {
+                    FlyerLabel(text: "À propos")
+                }
             }
             .flyerBackground()
             .sheet(item: $exported) { file in ShareSheet(url: file.url) }
@@ -142,12 +151,15 @@ struct ProfileView: View {
             Text(signedIn.email).foregroundStyle(Theme.mute)
             Text(syncText)
             Button("Synchroniser") { model.syncNow() }.disabled(model.busy || model.sync?.running == true)
+            NavigationLink("Personnes bloquées") { BlockedView(teknotes: model.teknotes) }
             Button("Se déconnecter") { model.signOut() }.disabled(model.busy)
             Button("Supprimer mon compte", role: .destructive) { confirmDelete = true }.disabled(model.busy)
         } else if model.state is AccountStateNeedsPseudo {
             Text("Ton pseudo est la seule chose que les autres verront de toi.").foregroundStyle(Theme.mute)
             TextField("Pseudo", text: $model.pseudo).autocorrectionDisabled().textInputAutocapitalization(.never)
-            Button("Valider") { model.choosePseudo() }.disabled(model.busy || model.pseudo.isEmpty)
+            Toggle("J'accepte les conditions d'utilisation", isOn: $model.termsAccepted)
+            NavigationLink("Lire les conditions") { LegalView(privacy: false) }
+            Button("Valider") { model.choosePseudo() }.disabled(model.busy || model.pseudo.isEmpty || !model.termsAccepted)
         } else if model.state is AccountStateSignedOut {
             Text("Ton carnet marche sans compte et reste sur ce téléphone. Un compte sert à contribuer à l'annuaire partagé et à retrouver ton carnet sur un autre téléphone.")
                 .foregroundStyle(Theme.mute)

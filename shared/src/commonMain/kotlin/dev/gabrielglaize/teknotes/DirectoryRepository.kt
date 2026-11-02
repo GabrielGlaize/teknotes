@@ -94,6 +94,50 @@ class DirectoryRepository internal constructor(
         return artist
     }
 
+    /** Edits a soundsystem, like a wiki: the server keeps every version. */
+    fun updateSoundsystem(
+        id: String,
+        name: String,
+        aliases: List<String>,
+        department: String?,
+        styles: List<Style>,
+        links: List<String>,
+    ) {
+        require(name.isNotBlank()) { "Le nom est obligatoire" }
+        queries.transaction {
+            save(Soundsystem(id, name.trim(), aliases.clean(), department, styles, links.clean()))
+            outbox.record(Entity.SOUNDSYSTEM, id)
+        }
+        outbox.changed()
+    }
+
+    /** Edits an artist; [soundsystemIds] is the full list of soundsystems they play with. */
+    fun updateArtist(
+        id: String,
+        name: String,
+        aliases: List<String>,
+        styles: List<Style>,
+        links: List<String>,
+        soundsystemIds: List<String>,
+    ) {
+        require(name.isNotBlank()) { "Le nom est obligatoire" }
+        val before = soundsystemsOf(id).map { it.id }.toSet()
+        val after = soundsystemIds.toSet()
+        queries.transaction {
+            save(Artist(id, name.trim(), aliases.clean(), styles, links.clean()))
+            outbox.record(Entity.ARTIST, id)
+            (after - before).forEach { soundsystemId ->
+                queries.addMember(soundsystemId, id)
+                outbox.record(Entity.MEMBERSHIP, membershipKey(soundsystemId, id))
+            }
+            (before - after).forEach { soundsystemId ->
+                queries.removeMember(soundsystemId, id)
+                outbox.record(Entity.MEMBERSHIP, membershipKey(soundsystemId, id), Operation.DELETE)
+            }
+        }
+        outbox.changed()
+    }
+
     internal fun save(soundsystem: Soundsystem) = with(soundsystem) {
         queries.upsertSoundsystem(
             id, name, aliases.joinLines(), department, styles.joinToString("\n") { it.id },

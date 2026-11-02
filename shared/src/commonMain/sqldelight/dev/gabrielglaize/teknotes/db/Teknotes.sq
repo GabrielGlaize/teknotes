@@ -39,7 +39,9 @@ CREATE TABLE night (
     comment TEXT NOT NULL DEFAULT '',
     shared INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL
+    updated_at INTEGER NOT NULL,
+    -- 1: the server has it. If it later disappears from the server, it was deleted elsewhere.
+    synced INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX night_date ON night(date);
@@ -53,7 +55,9 @@ CREATE TABLE night_entry (
     label TEXT NOT NULL DEFAULT '',
     rating INTEGER,
     comment TEXT NOT NULL DEFAULT '',
-    created_at INTEGER NOT NULL
+    created_at INTEGER NOT NULL,
+    -- 1: the server has it (see night.synced).
+    synced INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE INDEX night_entry_night ON night_entry(night_id);
@@ -162,7 +166,8 @@ nightByDate:
 SELECT * FROM night WHERE date = ? ORDER BY created_at LIMIT 1;
 
 nightSummaries:
-SELECT night.*, count(night_entry.id) AS entry_count
+SELECT night.id, night.date, night.department, night.title, night.comment, night.shared,
+    count(night_entry.id) AS entry_count
 FROM night
 LEFT JOIN night_entry ON night_entry.night_id = night.id
 GROUP BY night.id
@@ -173,18 +178,37 @@ INSERT INTO night_entry(id, night_id, soundsystem_id, artist_id, label, rating, 
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 upsertNight:
-INSERT OR REPLACE INTO night(id, date, department, title, comment, shared, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO night(id, date, department, title, comment, shared, created_at, updated_at, synced)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1);
 
 upsertEntry:
-INSERT OR REPLACE INTO night_entry(id, night_id, soundsystem_id, artist_id, label, rating, comment, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+INSERT OR REPLACE INTO night_entry(id, night_id, soundsystem_id, artist_id, label, rating, comment, created_at, synced)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1);
 
 entryById:
 SELECT * FROM night_entry WHERE id = ?;
 
 allNights:
 SELECT * FROM night;
+
+markNightSynced:
+UPDATE night SET synced = 1 WHERE id = ?;
+
+markEntrySynced:
+UPDATE night_entry SET synced = 1 WHERE id = ?;
+
+-- Signed out: what's on the phone no longer says anything about the next account's server copy.
+forgetSyncedNights:
+UPDATE night SET synced = 0;
+
+forgetSyncedEntries:
+UPDATE night_entry SET synced = 0;
+
+syncedNightIds:
+SELECT id FROM night WHERE synced = 1;
+
+syncedEntryIds:
+SELECT id FROM night_entry WHERE synced = 1;
 
 allEntriesRaw:
 SELECT * FROM night_entry;
@@ -197,7 +221,8 @@ DELETE FROM night_entry WHERE id = ?;
 
 entriesOfNight:
 SELECT
-    night_entry.*,
+    night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
+    night_entry.rating, night_entry.comment,
     coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
@@ -207,7 +232,8 @@ ORDER BY night_entry.created_at;
 
 allEntries:
 SELECT
-    night_entry.*,
+    night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
+    night_entry.rating, night_entry.comment,
     coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id

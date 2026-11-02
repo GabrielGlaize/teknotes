@@ -1,11 +1,17 @@
 import Shared
 import SwiftUI
 
-/// Adds a soundsystem or an artist to the directory. Entries that look alike are shown
+/// Adds or edits a soundsystem or an artist. When adding, entries that look alike are shown
 /// first: picking one avoids a duplicate. Opened from a night, the result is added to it.
 struct CreateView: View {
+    enum Mode: Equatable {
+        case create
+        case createForNight
+        case edit(id: String)
+    }
+
     let teknotes: Teknotes
-    let forNight: Bool
+    let mode: Mode
     let onDone: (DirectoryHit) -> Void
 
     @State private var kind: DirectoryHit.Kind
@@ -17,12 +23,31 @@ struct CreateView: View {
     @State private var memberOf: Set<String> = []
     @Environment(\.dismiss) private var dismiss
 
-    init(teknotes: Teknotes, kind: DirectoryHit.Kind, name: String, forNight: Bool, onDone: @escaping (DirectoryHit) -> Void) {
+    init(teknotes: Teknotes, kind: DirectoryHit.Kind, name: String, mode: Mode, onDone: @escaping (DirectoryHit) -> Void) {
         self.teknotes = teknotes
-        self.forNight = forNight
+        self.mode = mode
         self.onDone = onDone
         _kind = State(initialValue: kind)
         _name = State(initialValue: name)
+        guard case .edit(let id) = mode else { return }
+        if kind == .soundsystem, let entry = teknotes.directory.soundsystem(id: id) {
+            _name = State(initialValue: entry.name)
+            _aliases = State(initialValue: entry.aliases.joined(separator: ", "))
+            _department = State(initialValue: entry.department)
+            _styles = State(initialValue: Set(entry.styles))
+            _links = State(initialValue: entry.links.joined(separator: "\n"))
+        } else if let entry = teknotes.directory.artist(id: id) {
+            _name = State(initialValue: entry.name)
+            _aliases = State(initialValue: entry.aliases.joined(separator: ", "))
+            _styles = State(initialValue: Set(entry.styles))
+            _links = State(initialValue: entry.links.joined(separator: "\n"))
+            _memberOf = State(initialValue: Set(teknotes.directory.soundsystemsOf(artistId: id).map(\.id)))
+        }
+    }
+
+    private var editedId: String? {
+        if case .edit(let id) = mode { return id }
+        return nil
     }
 
     private var isSoundsystem: Bool { kind == .soundsystem }
@@ -32,15 +57,18 @@ struct CreateView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Type", selection: Binding(get: { isSoundsystem }, set: { kind = $0 ? .soundsystem : .artist })) {
-                        Text("Soundsystem").tag(true)
-                        Text("Artiste").tag(false)
+                    if editedId == nil {
+                        Picker("Type", selection: Binding(get: { isSoundsystem }, set: { kind = $0 ? .soundsystem : .artist })) {
+                            Text("Soundsystem").tag(true)
+                            Text("Artiste").tag(false)
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    .pickerStyle(.segmented)
                     TextField("Nom", text: $name).autocorrectionDisabled()
                 }
 
-                let lookalikes = teknotes.directory.lookalikes(name: name)
+                // While editing, the entry itself isn't a duplicate to warn about.
+                let lookalikes = editedId == nil ? teknotes.directory.lookalikes(name: name) : []
                 if !lookalikes.isEmpty {
                     Section {
                         ForEach(lookalikes, id: \.id) { hit in
@@ -93,18 +121,28 @@ struct CreateView: View {
                 }
 
                 Section {
-                    Button(forNight ? "Créer et ajouter à la nuit" : "Créer la fiche", action: save)
+                    Button(submitLabel, action: save)
                         .disabled(trimmedName.isEmpty)
                 } footer: {
-                    Text("Ta fiche rejoint l'annuaire partagé une fois connecté à ton compte.")
+                    if editedId == nil {
+                        Text("Ta fiche rejoint l'annuaire partagé une fois connecté à ton compte.")
+                    }
                 }
             }
             .flyerBackground()
-            .navigationTitle(isSoundsystem ? "Nouveau soundsystem" : "Nouvel artiste")
+            .navigationTitle(editedId != nil ? "Modifier la fiche" : (isSoundsystem ? "Nouveau soundsystem" : "Nouvel artiste"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
             }
+        }
+    }
+
+    private var submitLabel: String {
+        switch mode {
+        case .create: return "Créer la fiche"
+        case .createForNight: return "Créer et ajouter à la nuit"
+        case .edit: return "Enregistrer"
         }
     }
 
@@ -113,7 +151,14 @@ struct CreateView: View {
         let linkList = links.components(separatedBy: "\n")
         let chosenStyles = Style.entries.filter { styles.contains($0) }
         let hit: DirectoryHit
-        if isSoundsystem {
+        if let id = editedId {
+            if isSoundsystem {
+                teknotes.directory.updateSoundsystem(id: id, name: trimmedName, aliases: aliasList, department: department, styles: chosenStyles, links: linkList)
+            } else {
+                teknotes.directory.updateArtist(id: id, name: trimmedName, aliases: aliasList, styles: chosenStyles, links: linkList, soundsystemIds: Array(memberOf))
+            }
+            hit = DirectoryHit(id: id, kind: kind, name: trimmedName, matchedAlias: nil, score: 100)
+        } else if isSoundsystem {
             let created = teknotes.directory.createSoundsystem(name: trimmedName, aliases: aliasList, department: department, styles: chosenStyles, links: linkList)
             hit = DirectoryHit(id: created.id, kind: .soundsystem, name: created.name, matchedAlias: nil, score: 100)
         } else {

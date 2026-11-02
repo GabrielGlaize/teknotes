@@ -9,6 +9,7 @@ import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.exceptions.HttpRequestException
 import io.github.jan.supabase.exceptions.RestException
 import io.github.jan.supabase.functions.functions
+import io.github.jan.supabase.postgrest.exception.PostgrestRestException
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -41,6 +42,7 @@ class Account internal constructor(
     private val remote: SupabaseClient?,
     private val scope: CoroutineScope,
     private val onSignedIn: () -> Unit,
+    private val onSignedOut: () -> Unit,
 ) {
     private val mutableState = MutableStateFlow<AccountState>(if (remote == null) AccountState.Unavailable else AccountState.Loading)
     val state: StateFlow<AccountState> = mutableState.asStateFlow()
@@ -51,7 +53,10 @@ class Account internal constructor(
                 client.auth.sessionStatus.collect { status ->
                     when (status) {
                         is SessionStatus.Authenticated -> refreshProfile()
-                        is SessionStatus.NotAuthenticated -> mutableState.value = AccountState.SignedOut
+                        is SessionStatus.NotAuthenticated -> {
+                            onSignedOut()
+                            mutableState.value = AccountState.SignedOut
+                        }
                         else -> Unit
                     }
                 }
@@ -151,11 +156,13 @@ internal fun friendlyMessage(error: Throwable): String {
     val text = (error.message.orEmpty() + " " + ((error as? RestException)?.error.orEmpty())).lowercase()
     return when {
         error is HttpRequestException -> "Pas de réseau. Réessaie quand tu captes."
+        // Business errors raised by the server's functions are already written for the user.
+        error is PostgrestRestException && error.code == "P0001" -> error.error
         "invalid login credentials" in text || "invalid_credentials" in text -> "Email ou mot de passe incorrect."
         "already registered" in text || "user_already_exists" in text -> "Un compte existe déjà avec cet email."
         "password" in text && ("at least" in text || "weak" in text) -> "Mot de passe trop court : 6 caractères minimum."
         "expired" in text || "invalid" in text && "otp" in text || "token" in text && "invalid" in text -> "Code incorrect ou expiré."
-        "profiles_pseudo_unique" in text || "duplicate key" in text -> "Ce pseudo est déjà pris."
+        "profiles_pseudo_unique" in text -> "Ce pseudo est déjà pris."
         "rate limit" in text || "too many" in text -> "Trop d'essais. Attends un peu avant de recommencer."
         else -> "Le serveur n'a pas répondu comme prévu. Réessaie plus tard."
     }

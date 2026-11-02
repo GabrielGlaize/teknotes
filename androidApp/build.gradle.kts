@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+// Documents is synced by iCloud, which leaves "x 2" copies in build folders and breaks the
+// next build. iCloud ignores anything named *.nosync.
+layout.buildDirectory = layout.projectDirectory.dir("build.nosync")
+
 dependencies {
     implementation(projects.shared)
     implementation(platform(libs.compose.bom))

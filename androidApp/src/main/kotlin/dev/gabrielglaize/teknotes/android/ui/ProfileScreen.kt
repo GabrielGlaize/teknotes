@@ -12,10 +12,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.gabrielglaize.teknotes.AccountState
 import dev.gabrielglaize.teknotes.Appearance
+import dev.gabrielglaize.teknotes.Legal
 import dev.gabrielglaize.teknotes.SyncState
 import dev.gabrielglaize.teknotes.Teknotes
 import java.io.File
@@ -50,7 +54,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun ProfileScreen(teknotes: Teknotes, padding: PaddingValues) {
+fun ProfileScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigator) {
     val model = viewModel { AccountViewModel(teknotes) }
     val account by model.account.collectAsStateWithLifecycle()
     val sync by model.sync.collectAsStateWithLifecycle()
@@ -71,8 +75,8 @@ fun ProfileScreen(teknotes: Teknotes, padding: PaddingValues) {
                 AccountState.Unavailable -> Explanation("Ton carnet marche sans compte et reste sur ce téléphone. Le serveur de l'annuaire n'est pas encore branché sur cette version.")
                 AccountState.Loading -> Explanation("Un instant…")
                 AccountState.SignedOut -> SignedOutForm(form, model)
-                is AccountState.NeedsPseudo -> PseudoForm(form, model)
-                is AccountState.SignedIn -> SignedInPanel(state, sync, form, model)
+                is AccountState.NeedsPseudo -> PseudoForm(form, model, navigator)
+                is AccountState.SignedIn -> SignedInPanel(state, sync, form, model, navigator)
             }
             form.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         }
@@ -95,6 +99,18 @@ fun ProfileScreen(teknotes: Teknotes, padding: PaddingValues) {
         Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedButton(onClick = { share(context, "teknotes.json", "application/json", model.exportJson()) }) { Text("Exporter en JSON") }
             OutlinedButton(onClick = { share(context, "teknotes.csv", "text/csv", model.exportCsv()) }) { Text("Exporter en CSV") }
+        }
+
+        SectionLabel("À propos")
+        Column(Modifier.padding(horizontal = 8.dp)) {
+            TextButton(onClick = { navigator.open(Route.Legal(privacy = false)) }) { Text("Conditions d'utilisation") }
+            TextButton(onClick = { navigator.open(Route.Legal(privacy = true)) }) { Text("Confidentialité") }
+            Text(
+                "Contact : ${Legal.CONTACT_EMAIL}",
+                Modifier.padding(horizontal = 12.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Spacer(Modifier.height(32.dp))
     }
@@ -147,7 +163,7 @@ private fun SignedOutForm(form: AccountForm, model: AccountViewModel) {
 }
 
 @Composable
-private fun PseudoForm(form: AccountForm, model: AccountViewModel) {
+private fun PseudoForm(form: AccountForm, model: AccountViewModel, navigator: Navigator) {
     Explanation("Ton pseudo est la seule chose que les autres verront de toi.")
     OutlinedTextField(
         value = form.pseudo,
@@ -156,13 +172,21 @@ private fun PseudoForm(form: AccountForm, model: AccountViewModel) {
         label = { Text("Pseudo") },
         singleLine = true,
     )
-    Button(onClick = model::choosePseudo, enabled = !form.busy && form.pseudo.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Valider") }
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = form.termsAccepted, role = Role.Checkbox, onValueChange = { accepted -> model.edit { it.copy(termsAccepted = accepted) } }),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = form.termsAccepted, onCheckedChange = null, modifier = Modifier.padding(12.dp))
+        Text("J'accepte les conditions d'utilisation", Modifier.weight(1f))
+    }
+    TextButton(onClick = { navigator.open(Route.Legal(privacy = false)) }) { Text("Lire les conditions") }
+    Button(onClick = model::choosePseudo, enabled = !form.busy && form.pseudo.isNotBlank() && form.termsAccepted, modifier = Modifier.fillMaxWidth()) { Text("Valider") }
 }
 
 private val timeFormat = DateTimeFormatter.ofPattern("d MMM à HH:mm", java.util.Locale.FRENCH).withZone(ZoneId.systemDefault())
 
 @Composable
-private fun SignedInPanel(state: AccountState.SignedIn, sync: SyncState, form: AccountForm, model: AccountViewModel) {
+private fun SignedInPanel(state: AccountState.SignedIn, sync: SyncState, form: AccountForm, model: AccountViewModel, navigator: Navigator) {
     var confirmDelete by remember { mutableStateOf(false) }
     Explanation(state.email)
     Text(
@@ -175,6 +199,7 @@ private fun SignedInPanel(state: AccountState.SignedIn, sync: SyncState, form: A
         },
     )
     Button(onClick = model::syncNow, enabled = !form.busy && !sync.running, modifier = Modifier.fillMaxWidth()) { Text("Synchroniser") }
+    TextButton(onClick = { navigator.open(Route.Blocked) }) { Text("Personnes bloquées") }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = model::signOut, enabled = !form.busy) { Text("Se déconnecter") }
         TextButton(onClick = { confirmDelete = true }, enabled = !form.busy) { Text("Supprimer mon compte") }

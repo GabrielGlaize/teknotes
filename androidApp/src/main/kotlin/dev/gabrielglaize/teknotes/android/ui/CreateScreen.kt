@@ -48,27 +48,57 @@ import dev.gabrielglaize.teknotes.Teknotes
  * shown first: picking one avoids a duplicate. Opened from a night, the result is
  * added to that night.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateScreen(teknotes: Teknotes, route: Route.Create, navigator: Navigator) {
     val model = viewModel(key = route.toString()) { CreateViewModel(teknotes, route.kind, route.name) }
+    EntryForm(
+        model = model,
+        editing = false,
+        submitLabel = if (route.nightId != null) "Créer et ajouter à la nuit" else "Créer la fiche",
+        navigator = navigator,
+        finish = { hit ->
+            if (route.nightId != null) {
+                teknotes.notebook.addEntry(route.nightId, hit)
+                navigator.back()
+            } else {
+                navigator.replace(if (hit.kind == DirectoryHit.Kind.SOUNDSYSTEM) Route.SoundsystemDetail(hit.id) else Route.ArtistDetail(hit.id))
+            }
+        },
+    )
+}
+
+/** Edits an entry, like a wiki: every version stays in the history. */
+@Composable
+fun EditScreen(teknotes: Teknotes, route: Route.Edit, navigator: Navigator) {
+    val model = viewModel(key = route.toString()) { CreateViewModel(teknotes, route.kind, "", editedId = route.id) }
+    EntryForm(model, editing = true, submitLabel = "Enregistrer", navigator = navigator, finish = { navigator.back() })
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EntryForm(
+    model: CreateViewModel,
+    editing: Boolean,
+    submitLabel: String,
+    navigator: Navigator,
+    finish: (DirectoryHit) -> Unit,
+) {
     val form by model.state.collectAsStateWithLifecycle()
     val soundsystems by model.soundsystems.collectAsStateWithLifecycle()
     var pickDepartment by remember { mutableStateOf(false) }
 
-    val finish = { hit: DirectoryHit ->
-        if (route.nightId != null) {
-            teknotes.notebook.addEntry(route.nightId, hit)
-            navigator.back()
-        } else {
-            navigator.replace(if (hit.kind == DirectoryHit.Kind.SOUNDSYSTEM) Route.SoundsystemDetail(hit.id) else Route.ArtistDetail(hit.id))
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (form.kind == DirectoryHit.Kind.SOUNDSYSTEM) "Nouveau soundsystem" else "Nouvel artiste") },
+                title = {
+                    Text(
+                        when {
+                            editing -> "Modifier la fiche"
+                            form.kind == DirectoryHit.Kind.SOUNDSYSTEM -> "Nouveau soundsystem"
+                            else -> "Nouvel artiste"
+                        },
+                    )
+                },
                 navigationIcon = { IconButton(onClick = navigator::back) { Icon(Icons.Filled.Close, contentDescription = "Annuler") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
             )
@@ -78,13 +108,15 @@ fun CreateScreen(teknotes: Teknotes, route: Route.Create, navigator: Navigator) 
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                listOf(DirectoryHit.Kind.SOUNDSYSTEM to "Soundsystem", DirectoryHit.Kind.ARTIST to "Artiste").forEachIndexed { index, (kind, label) ->
-                    SegmentedButton(
-                        selected = form.kind == kind,
-                        onClick = { model.update { it.copy(kind = kind) } },
-                        shape = SegmentedButtonDefaults.itemShape(index, 2),
-                    ) { Text(label) }
+            if (!editing) {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                    listOf(DirectoryHit.Kind.SOUNDSYSTEM to "Soundsystem", DirectoryHit.Kind.ARTIST to "Artiste").forEachIndexed { index, (kind, label) ->
+                        SegmentedButton(
+                            selected = form.kind == kind,
+                            onClick = { model.update { it.copy(kind = kind) } },
+                            shape = SegmentedButtonDefaults.itemShape(index, 2),
+                        ) { Text(label) }
+                    }
                 }
             }
             OutlinedTextField(
@@ -150,17 +182,19 @@ fun CreateScreen(teknotes: Teknotes, route: Route.Create, navigator: Navigator) 
                     }
                 }
             }
-            Text(
-                "Ta fiche rejoint l'annuaire partagé une fois connecté à ton compte.",
-                Modifier.padding(horizontal = 20.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!editing) {
+                Text(
+                    "Ta fiche rejoint l'annuaire partagé une fois connecté à ton compte.",
+                    Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Button(
                 onClick = { finish(model.save()) },
                 enabled = form.name.isNotBlank(),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(56.dp),
-            ) { Text(if (route.nightId != null) "Créer et ajouter à la nuit" else "Créer la fiche") }
+            ) { Text(submitLabel) }
             Spacer(Modifier.height(32.dp))
         }
     }

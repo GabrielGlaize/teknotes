@@ -9,7 +9,7 @@ enum Theme {
         : UIColor(red: 0.78, green: 0.12, blue: 0.45, alpha: 1)
     })
     /// Field mode: the accent dimmed so the screen doesn't light up a dark field.
-    static let pinkDimmed = Color(red: 0.61, green: 0.23, blue: 0.41)
+    static let pinkDimmed = Color(red: 0.72, green: 0.33, blue: 0.54)
     /// Field mode: everything a bit larger.
     static var scale: CGFloat = 1
 
@@ -30,6 +30,11 @@ enum Theme {
         }
     }
 
+    /// Follows the text size chosen in the phone's settings (accessibility).
+    private static func scaled(_ size: CGFloat) -> CGFloat {
+        UIFontMetrics.default.scaledValue(for: size * scale)
+    }
+
     /// Variable font instance (axes "wght" and "wdth" given as 4-letter tags).
     private static func variable(_ family: String, size: CGFloat, weight: CGFloat, width: CGFloat? = nil) -> Font {
         var axes: [Int: CGFloat] = [tag("wght"): weight]
@@ -45,9 +50,9 @@ enum Theme {
         text.unicodeScalars.reduce(0) { ($0 << 8) | Int($1.value) }
     }
 
-    static func title(_ size: CGFloat = 34) -> Font { variable("Archivo", size: size * scale, weight: 800, width: 125) }
-    static func body(_ size: CGFloat = 17, weight: CGFloat = 400) -> Font { variable("Manrope", size: size * scale, weight: weight) }
-    static var label: Font { Font.custom("Special Elite", size: 12 * scale) }
+    static func title(_ size: CGFloat = 34) -> Font { variable("Archivo", size: scaled(size), weight: 800, width: 125) }
+    static func body(_ size: CGFloat = 17, weight: CGFloat = 400) -> Font { variable("Manrope", size: scaled(size), weight: weight) }
+    static var label: Font { Font.custom("Special Elite", size: scaled(12)) }
 }
 
 extension View {
