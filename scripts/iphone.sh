@@ -3,7 +3,7 @@
 #
 #   scripts/iphone.sh           server only (start, reset, demo data), prints what to do next
 #   scripts/iphone.sh install   the same, then builds the app and installs it on the iPhone
-#   scripts/iphone.sh install <device id>   if several devices are plugged in
+#   scripts/iphone.sh install <identifiant ou UDID>   si plusieurs iPhone sont branchés
 #
 # Needs Docker running, the iPhone plugged in and unlocked (Developer Mode on), on the same
 # Wi-Fi as this Mac.
@@ -38,20 +38,38 @@ fi
 
 if [ "${1:-}" = "install" ]; then
   echo "==> iPhone"
-  DEVICE="${2:-}"
-  if [ -z "$DEVICE" ]; then
-    DEVICE="$(xcrun devicectl list devices 2>/dev/null | awk '/iPhone/ && /available/ {print $(NF-3)}' | head -1)"
-  fi
-  if [ -z "$DEVICE" ]; then
+  # devicectl (install, launch) uses the CoreDevice identifier; xcodebuild wants the hardware UDID.
+  xcrun devicectl list devices --json-output /tmp/teknotes-devices.json >/dev/null 2>&1 || true
+  PICK="$(python3 - "${2:-}" <<'PY'
+import json, sys
+wanted = sys.argv[1]
+try:
+    devices = json.load(open("/tmp/teknotes-devices.json"))["result"]["devices"]
+except Exception:
+    devices = []
+for device in devices:
+    product = device["hardwareProperties"].get("productType", "")
+    ready = device["connectionProperties"].get("tunnelState") in ("connected", "available")
+    if not product.startswith("iPhone") or not ready:
+        continue
+    if wanted and wanted not in (device["identifier"], device["hardwareProperties"].get("udid")):
+        continue
+    print(device["identifier"], device["hardwareProperties"]["udid"], device["deviceProperties"]["name"])
+    break
+PY
+)"
+  if [ -z "$PICK" ]; then
     echo "Aucun iPhone disponible. Branche-le, déverrouille-le, accepte « Faire confiance à cet ordinateur »," >&2
     echo "puis relance : scripts/iphone.sh install" >&2
-    xcrun devicectl list devices >&2 || true
     exit 1
   fi
-  echo "    appareil : $DEVICE"
+  DEVICE="$(echo "$PICK" | cut -d' ' -f1)"
+  UDID="$(echo "$PICK" | cut -d' ' -f2)"
+  echo "    appareil : $(echo "$PICK" | cut -d' ' -f3-)"
   (cd iosApp && xcodebuild -project Teknotes.xcodeproj -scheme Teknotes -configuration Debug \
-    -destination "id=$DEVICE" -derivedDataPath /tmp/teknotes-device -allowProvisioningUpdates \
-    TEKNOTES_SUPABASE_URL="$URL" build 2>&1 | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true)
+    -destination "id=$UDID" -derivedDataPath /tmp/teknotes-device -allowProvisioningUpdates \
+    TEKNOTES_SUPABASE_URL="$URL" build > /tmp/teknotes-device-build.log 2>&1 || true)
+  grep -E "error:|BUILD (SUCCEEDED|FAILED)" /tmp/teknotes-device-build.log | sort -u | head -8 || true
   APP="/tmp/teknotes-device/Build/Products/Debug-iphoneos/Teknotes.app"
   [ -d "$APP" ] || { echo "La compilation a échoué (voir au-dessus)." >&2; exit 1; }
   xcrun devicectl device install app --device "$DEVICE" "$APP"
