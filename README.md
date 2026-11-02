@@ -4,6 +4,15 @@ Carnet de poche pour garder la trace des soundsystems et des artistes croisés e
 
 Ce que fait la V1 et pourquoi : [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_CHARGES.md). Ce qu'il reste à faire avant de la diffuser : [`docs/AVANT_DIFFUSION.md`](docs/AVANT_DIFFUSION.md).
 
+<p>
+  <img src="docs/captures/carnet.webp" width="190" alt="Le carnet : les nuits notées">
+  <img src="docs/captures/nuit.webp" width="190" alt="Une nuit et ses sets">
+  <img src="docs/captures/annuaire.webp" width="190" alt="L'annuaire public">
+  <img src="docs/captures/fiche.webp" width="190" alt="La fiche d'un soundsystem">
+</p>
+
+Captures prises sur le simulateur iPhone avec les données de démonstration (fictives). Pour les refaire : `TEST_RUNNER_TEKNOTES_SHOTS=<dossier> TEST_RUNNER_TEKNOTES_DEMO=1 xcodebuild test … -only-testing:TeknotesUITests/TeknotesUITests/testTheDemoAccountBringsTheSeededNotebook` (serveur de démo : `scripts/iphone.sh`).
+
 ## Organisation
 
 | Dossier | Contenu |
