@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
@@ -23,6 +24,8 @@ import dev.gabrielglaize.teknotes.android.R
 object Flyer {
     val pink = Color(0xFFFF4FA3)
     val pinkOnLight = Color(0xFFC81E72)
+    /** Field mode: the accent dimmed so the screen doesn't light up a dark field. */
+    val pinkDimmed = Color(0xFF9C3A68)
 }
 
 @OptIn(ExperimentalTextApi::class)
@@ -44,7 +47,7 @@ val Manrope = FontFamily(
 val Typewriter = FontFamily(Font(R.font.special_elite))
 val Grotesk = FontFamily(variable(R.font.space_grotesk, 500))
 
-private val dark = darkColorScheme(
+private val darkColors = darkColorScheme(
     primary = Flyer.pink,
     onPrimary = Color(0xFF0A0A0A),
     background = Color(0xFF0A0A0A),
@@ -58,7 +61,7 @@ private val dark = darkColorScheme(
     outlineVariant = Color(0xFF262626),
 )
 
-private val light = lightColorScheme(
+private val lightColors = lightColorScheme(
     primary = Flyer.pinkOnLight,
     onPrimary = Color.White,
     background = Color(0xFFF4F1EA),
@@ -86,11 +89,29 @@ private val typography = Typography().run {
     )
 }
 
+private fun Typography.scaled(factor: Float): Typography = copy(
+    bodyLarge = bodyLarge.copy(fontSize = bodyLarge.fontSize * factor, lineHeight = bodyLarge.lineHeight * factor),
+    bodyMedium = bodyMedium.copy(fontSize = bodyMedium.fontSize * factor, lineHeight = bodyMedium.lineHeight * factor),
+    bodySmall = bodySmall.copy(fontSize = bodySmall.fontSize * factor, lineHeight = bodySmall.lineHeight * factor),
+    titleLarge = titleLarge.copy(fontSize = titleLarge.fontSize * factor),
+    titleMedium = titleMedium.copy(fontSize = titleMedium.fontSize * factor),
+    labelLarge = labelLarge.copy(fontSize = labelLarge.fontSize * factor),
+)
+
+/**
+ * [dark]: the appearance chosen in the profile (system by default).
+ * [fieldMode]: dark, dimmed accent and larger text, for use in the middle of a night.
+ */
 @Composable
-fun TeknotesTheme(content: @Composable () -> Unit) {
+fun TeknotesTheme(dark: Boolean = isSystemInDarkTheme(), fieldMode: Boolean = false, content: @Composable () -> Unit) {
+    val colors = when {
+        fieldMode -> darkColors.copy(primary = Flyer.pinkDimmed, onPrimary = Color.Black, onSurfaceVariant = Color(0xFF6F6C66))
+        dark -> darkColors
+        else -> lightColors
+    }
     MaterialTheme(
-        colorScheme = if (isSystemInDarkTheme()) dark else light,
-        typography = typography,
+        colorScheme = colors,
+        typography = if (fieldMode) typography.scaled(1.18f) else typography,
         content = content,
     )
 }
@@ -99,7 +120,7 @@ fun TeknotesTheme(content: @Composable () -> Unit) {
 @Composable
 @ReadOnlyComposable
 fun chromeTitle(): TextStyle {
-    val colors = if (isSystemInDarkTheme()) {
+    val colors = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
         listOf(Color.White, Color(0xFFCFCCC4), Color(0xFF5E5B55), Color(0xFFEBE8E0), Color(0xFF8F8C84))
     } else {
         listOf(Color(0xFF121212), Color(0xFF4A4741), Color(0xFF9A968E), Color(0xFF2B2925), Color(0xFF5E5B55))

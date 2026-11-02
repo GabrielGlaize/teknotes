@@ -76,12 +76,18 @@ CREATE TABLE public.memberships (
 CREATE INDEX memberships_artist ON public.memberships (artist_id);
 
 -- Authorship is set by the server, never trusted from the client.
+-- Updates coming from another trigger (a deleted account's ON DELETE SET NULL,
+-- moderation hiding an entry) are left as they are: stamping them would put back
+-- the author being removed and make the account deletion fail.
 CREATE FUNCTION public._stamp_directory_row()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
 BEGIN
+  IF TG_OP = 'UPDATE' AND pg_trigger_depth() > 1 THEN
+    RETURN NEW;
+  END IF;
   IF TG_OP = 'INSERT' THEN
     NEW.created_by := (select auth.uid());
     NEW.created_at := now();
@@ -216,13 +222,21 @@ CREATE INDEX revisions_entity ON public.revisions (entity, entity_id, created_at
 CREATE INDEX revisions_author ON public.revisions (author);
 
 -- Written by the server only (SECURITY DEFINER: users have no INSERT right on revisions).
+-- History holds content changes only. Changes of authorship or visibility (an
+-- account deletion cascade, moderation) are skipped: they are not edits, and would
+-- name an author that is being deleted.
 CREATE FUNCTION public._record_revision()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = ''
 AS $$
+DECLARE
+  v_meta text[] := ARRAY['created_by', 'updated_by', 'created_at', 'updated_at', 'hidden'];
 BEGIN
+  IF TG_OP = 'UPDATE' AND (to_jsonb(NEW) - v_meta) = (to_jsonb(OLD) - v_meta) THEN
+    RETURN NULL;
+  END IF;
   INSERT INTO public.revisions (entity, entity_id, author, before, after)
   VALUES (
     TG_ARGV[0],

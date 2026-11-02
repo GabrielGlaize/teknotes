@@ -11,6 +11,7 @@ import kotlin.uuid.Uuid
 /** The shared directory of soundsystems and artists, as cached on the phone. */
 class DirectoryRepository internal constructor(
     private val queries: TeknotesQueries,
+    private val outbox: Outbox,
     private val clock: () -> Instant,
 ) {
     private val soundsystemMapper = {
@@ -29,6 +30,9 @@ class DirectoryRepository internal constructor(
 
     fun artists(): Flow<List<Artist>> =
         queries.visibleArtists(artistMapper).asFlow().mapToList(Dispatchers.Default)
+
+    /** Snapshot of the visible soundsystems, for pickers. */
+    fun allSoundsystemsNow(): List<Soundsystem> = queries.visibleSoundsystems(soundsystemMapper).executeAsList()
 
     fun soundsystem(id: String): Soundsystem? = queries.soundsystemById(id, soundsystemMapper).executeAsOneOrNull()
 
@@ -50,30 +54,43 @@ class DirectoryRepository internal constructor(
     /** Existing entries that look like [name], shown before creating a new one to avoid duplicates. */
     fun lookalikes(name: String): List<DirectoryHit> = search(name).take(3)
 
+    /** Adds a soundsystem to the directory. It reaches the shared directory once an account is there. */
     fun createSoundsystem(
         name: String,
-        aliases: List<String> = emptyList(),
-        department: String? = null,
-        styles: List<Style> = emptyList(),
-        links: List<String> = emptyList(),
+        aliases: List<String>,
+        department: String?,
+        styles: List<Style>,
+        links: List<String>,
     ): Soundsystem {
-        val soundsystem = Soundsystem(Uuid.random().toString(), name.trim(), aliases, department, styles, links)
-        save(soundsystem)
+        require(name.isNotBlank()) { "Le nom est obligatoire" }
+        val soundsystem = Soundsystem(Uuid.random().toString(), name.trim(), aliases.clean(), department, styles, links.clean())
+        queries.transaction {
+            save(soundsystem)
+            outbox.record(Entity.SOUNDSYSTEM, soundsystem.id)
+        }
+        outbox.changed()
         return soundsystem
     }
 
+    /** Adds an artist, optionally as a member of soundsystems. */
     fun createArtist(
         name: String,
-        aliases: List<String> = emptyList(),
-        styles: List<Style> = emptyList(),
-        links: List<String> = emptyList(),
-        soundsystemIds: List<String> = emptyList(),
+        aliases: List<String>,
+        styles: List<Style>,
+        links: List<String>,
+        soundsystemIds: List<String>,
     ): Artist {
-        val artist = Artist(Uuid.random().toString(), name.trim(), aliases, styles, links)
+        require(name.isNotBlank()) { "Le nom est obligatoire" }
+        val artist = Artist(Uuid.random().toString(), name.trim(), aliases.clean(), styles, links.clean())
         queries.transaction {
             save(artist)
-            soundsystemIds.forEach { queries.addMember(it, artist.id) }
+            outbox.record(Entity.ARTIST, artist.id)
+            soundsystemIds.forEach { soundsystemId ->
+                queries.addMember(soundsystemId, artist.id)
+                outbox.record(Entity.MEMBERSHIP, membershipKey(soundsystemId, artist.id))
+            }
         }
+        outbox.changed()
         return artist
     }
 
@@ -93,7 +110,32 @@ class DirectoryRepository internal constructor(
 
     internal fun addMember(soundsystemId: String, artistId: String) = queries.addMember(soundsystemId, artistId)
 
-    /** Fills an empty directory with clearly fictional demo data, for tests and the first launch. */
+    internal fun memberships(): List<Pair<String, String>> =
+        queries.allMemberships().executeAsList().map { it.soundsystem_id to it.artist_id }
+
+    /** Replaces the cache with the server's directory, keeping local entries not sent yet. */
+    internal fun replaceWith(soundsystems: List<Soundsystem>, artists: List<Artist>, members: List<Pair<String, String>>) {
+        val time = clock().toEpochMilliseconds()
+        queries.transaction {
+            queries.deleteSyncedSoundsystems()
+            queries.deleteSyncedArtists()
+            queries.deleteSyncedMemberships()
+            soundsystems.forEach {
+                queries.insertSoundsystemIfAbsent(
+                    it.id, it.name, it.aliases.joinLines(), it.department, it.styles.joinToString("\n") { s -> s.id },
+                    it.links.joinLines(), 0, time,
+                )
+            }
+            artists.forEach {
+                queries.insertArtistIfAbsent(
+                    it.id, it.name, it.aliases.joinLines(), it.styles.joinToString("\n") { s -> s.id }, it.links.joinLines(), 0, time,
+                )
+            }
+            members.forEach { (soundsystem, artist) -> queries.addMember(soundsystem, artist) }
+        }
+    }
+
+    /** Fills an empty directory with clearly fictional demo data, until the first sync. */
     fun seedDemoIfEmpty() {
         if (queries.countSoundsystems().executeAsOne() > 0) return
         queries.transaction { DemoData.seed(this@DirectoryRepository) }
@@ -106,3 +148,5 @@ class DirectoryRepository internal constructor(
 }
 
 private fun String.toStyles(): List<Style> = splitLines().mapNotNull(Style::fromId)
+
+private fun List<String>.clean() = map { it.trim() }.filter { it.isNotEmpty() }.distinct()

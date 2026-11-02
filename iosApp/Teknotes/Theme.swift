@@ -8,6 +8,11 @@ enum Theme {
         ? UIColor(red: 1, green: 0.31, blue: 0.64, alpha: 1)
         : UIColor(red: 0.78, green: 0.12, blue: 0.45, alpha: 1)
     })
+    /// Field mode: the accent dimmed so the screen doesn't light up a dark field.
+    static let pinkDimmed = Color(red: 0.61, green: 0.23, blue: 0.41)
+    /// Field mode: everything a bit larger.
+    static var scale: CGFloat = 1
+
     static let background = Color(UIColor { $0.userInterfaceStyle == .dark
         ? UIColor(red: 0.04, green: 0.04, blue: 0.04, alpha: 1)
         : UIColor(red: 0.96, green: 0.95, blue: 0.92, alpha: 1)
@@ -40,9 +45,16 @@ enum Theme {
         text.unicodeScalars.reduce(0) { ($0 << 8) | Int($1.value) }
     }
 
-    static func title(_ size: CGFloat = 34) -> Font { variable("Archivo", size: size, weight: 800, width: 125) }
-    static func body(_ size: CGFloat = 17, weight: CGFloat = 400) -> Font { variable("Manrope", size: size, weight: weight) }
-    static let label = Font.custom("Special Elite", size: 12)
+    static func title(_ size: CGFloat = 34) -> Font { variable("Archivo", size: size * scale, weight: 800, width: 125) }
+    static func body(_ size: CGFloat = 17, weight: CGFloat = 400) -> Font { variable("Manrope", size: size * scale, weight: weight) }
+    static var label: Font { Font.custom("Special Elite", size: 12 * scale) }
+}
+
+extension View {
+    /// Lists and forms on the Flyer background instead of the system's grouped grey.
+    func flyerBackground() -> some View {
+        scrollContentBackground(.hidden).background(Theme.background)
+    }
 }
 
 /// Big title in brushed chrome, like the name on the portfolio.

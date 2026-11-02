@@ -16,6 +16,7 @@ import kotlin.uuid.Uuid
 /** The user's own notebook: nights and what was heard. Always local first. */
 class NotebookRepository internal constructor(
     private val queries: TeknotesQueries,
+    private val outbox: Outbox,
     private val clock: () -> Instant,
 ) {
     private val nightMapper = {
@@ -25,12 +26,16 @@ class NotebookRepository internal constructor(
     }
 
     private val entryMapper = {
-            id: String, nightId: String, soundsystemId: String?, artistId: String?, rating: Long?,
+            id: String, nightId: String, soundsystemId: String?, artistId: String?, _: String, rating: Long?,
             comment: String, _: Long, label: String ->
         NightEntry(id, nightId, soundsystemId, artistId, label, rating?.toInt(), comment)
     }
 
     private fun now() = clock().toEpochMilliseconds()
+
+    private fun touched(nightId: String) {
+        outbox.record(Entity.NIGHT, nightId)
+    }
 
     fun nights(): Flow<List<Night>> = queries.nightSummaries(nightMapper).asFlow().mapToList(Dispatchers.Default)
 
@@ -43,29 +48,46 @@ class NotebookRepository internal constructor(
      * "I'm here": opens the night in progress, or creates it. Before noon, the night
      * of the day before is still in progress (see [NightClock]).
      */
-    fun checkIn(department: String? = null): Night {
+    fun checkIn(department: String?): Night {
         val local = clock().toLocalDateTime(TimeZone.currentSystemDefault())
         val date = NightClock.nightDate(local)
         val existing = queries.nightByDate(date).executeAsOneOrNull()
-        val id = existing?.id ?: createNight(date, department).id
+        val id = existing?.id ?: createNight(date, department, "").id
         return night(id)!!
     }
 
-    fun createNight(date: String, department: String? = null, title: String = ""): Night {
+    fun createNight(date: String, department: String?, title: String): Night {
         LocalDate.parse(date) // rejects anything that isn't an ISO date
         val id = Uuid.random().toString()
         val time = now()
-        queries.insertNight(id, date, department, title.trim(), "", 0, time, time)
+        queries.transaction {
+            queries.insertNight(id, date, department, title.trim(), "", 0, time, time)
+            touched(id)
+        }
+        outbox.changed()
         return night(id)!!
     }
 
     fun updateNight(id: String, department: String?, title: String, comment: String, shared: Boolean) {
-        queries.updateNight(department, title.trim(), comment.trim(), if (shared) 1 else 0, now(), id)
+        val current = queries.nightById(id).executeAsOneOrNull() ?: return
+        val unchanged = current.department == department && current.title == title.trim() &&
+            current.comment == comment.trim() && (current.shared != 0L) == shared
+        if (unchanged) return // screens save on every keystroke and when they open
+        queries.transaction {
+            queries.updateNight(department, title.trim(), comment.trim(), if (shared) 1 else 0, now(), id)
+            touched(id)
+        }
+        outbox.changed()
     }
 
-    fun deleteNight(id: String) = queries.transaction {
-        queries.deleteEntriesOfNight(id)
-        queries.deleteNight(id)
+    fun deleteNight(id: String) {
+        queries.transaction {
+            queries.dropEntryChangesOfNight(id)
+            queries.deleteEntriesOfNight(id)
+            queries.deleteNight(id)
+            outbox.record(Entity.NIGHT, id, Operation.DELETE)
+        }
+        outbox.changed()
     }
 
     /** Adds a soundsystem or an artist found in the directory to a night: the second tap of "add in 2 taps". */
@@ -73,16 +95,39 @@ class NotebookRepository internal constructor(
         val id = Uuid.random().toString()
         val soundsystemId = hit.id.takeIf { hit.kind == DirectoryHit.Kind.SOUNDSYSTEM }
         val artistId = hit.id.takeIf { hit.kind == DirectoryHit.Kind.ARTIST }
-        queries.insertEntry(id, nightId, soundsystemId, artistId, null, "", now())
+        queries.transaction {
+            queries.insertEntry(id, nightId, soundsystemId, artistId, hit.name, null, "", now())
+            outbox.record(Entity.NIGHT_ENTRY, id)
+        }
+        outbox.changed()
         return id
     }
 
-    fun rateEntry(entryId: String, rating: Int?, comment: String) {
-        require(rating == null || rating in 1..5) { "Rating must be between 1 and 5" }
-        queries.updateEntry(rating?.toLong(), comment.trim(), entryId)
+    /** Rating (1 to 5, or null to clear it) and comment of something heard. */
+    fun updateEntry(entryId: String, rating: Int?, comment: String) {
+        require(rating == null || rating in 1..5) { "La note va de 1 à 5" }
+        val current = queries.entryById(entryId).executeAsOneOrNull() ?: return
+        if (current.rating?.toInt() == rating && current.comment == comment.trim()) return
+        queries.transaction {
+            queries.updateEntry(rating?.toLong(), comment.trim(), entryId)
+            outbox.record(Entity.NIGHT_ENTRY, entryId)
+        }
+        outbox.changed()
     }
 
-    fun removeEntry(entryId: String) = queries.deleteEntry(entryId)
+    fun removeEntry(entryId: String) {
+        queries.transaction {
+            queries.deleteEntry(entryId)
+            outbox.record(Entity.NIGHT_ENTRY, entryId, Operation.DELETE)
+        }
+        outbox.changed()
+    }
+
+    /** Puts the whole notebook in the outbox, e.g. right after signing in. */
+    internal fun recordEverything() = queries.transaction {
+        queries.allNights().executeAsList().forEach { outbox.record(Entity.NIGHT, it.id) }
+        queries.allEntriesRaw().executeAsList().forEach { outbox.record(Entity.NIGHT_ENTRY, it.id) }
+    }
 
     /** The whole notebook as JSON: the user's data belongs to them. */
     fun exportJson(): String {

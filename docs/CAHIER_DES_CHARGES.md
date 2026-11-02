@@ -16,6 +16,8 @@ Décisions prises au QCM du 29 octobre 2026. Toute évolution de ce document se 
 
 ## 2. Périmètre de la V1
 
+État au 30 octobre 2026 : étapes 1, 2 et 3 de la section 9 terminées (voir « Où on en est »).
+
 | Dans la V1 | Plus tard (V2 et après) |
 | --- | --- |
 | Carnet perso hors ligne : soirées, soundsystems et artistes entendus, note, commentaire | Suivre un soundsystem et voir ses nouvelles apparitions |
@@ -24,7 +26,7 @@ Décisions prises au QCM du 29 octobre 2026. Toute évolution de ce document se 
 | Suggestions de doublons pendant la saisie, propositions de fusion | Soirée commune partagée entre plusieurs personnes |
 | Signalement, masquage automatique, blocage d'un utilisateur | Fiches revendiquées par les soundsystems et artistes (vérifiées) |
 | Compte facultatif (obligatoire pour contribuer) | Gardiens de l'annuaire choisis par la communauté |
-| Connexion Apple, Google, lien magique, email + mot de passe | Anglais |
+| Connexion email + mot de passe et code à 6 chiffres reçu par mail ; Apple et Google quand les comptes développeur existent | Anglais |
 | Export du carnet (JSON et CSV), suppression du compte | |
 | Thème sombre et clair, mode « champ » | |
 
@@ -40,7 +42,7 @@ Trois onglets : **Carnet · Annuaire · Profil**.
   - Une soirée commence le soir et finit au matin : avant midi, « J'y suis » rattache à la soirée de la veille.
 - Fiche soirée : date, département, liste des soundsystems et artistes entendus, note de 1 à 5 et commentaire par entrée, commentaire général, partage (privé / partagé).
 - **Ajout en 2 appuis** : 1) champ de recherche dans l'annuaire, 2) toucher un résultat. Si rien ne correspond, « Créer "…" » en bas de la liste.
-- Dictée vocale dans les champs texte (clavier natif ou bouton micro).
+- Dictée vocale dans les champs texte : celle du clavier natif, sur les deux téléphones.
 
 ### Annuaire
 - Recherche tolérante aux fautes et aux accents, qui marche aussi hors ligne (« teknokrat » trouve « Teknokrates »).
@@ -51,7 +53,8 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 
 ### Profil
 - Sans compte : explication courte, boutons de connexion.
-- Avec compte : pseudo, mode d'affichage (sombre / clair / système), mode « champ », export du carnet, utilisateurs bloqués, déconnexion, **suppression du compte**, conditions d'utilisation, contact.
+- Avec compte : pseudo, état de la synchronisation, déconnexion, **suppression du compte**, utilisateurs bloqués, conditions d'utilisation, contact.
+- Dans tous les cas : affichage (système / sombre / clair), mode « champ » (sombre, accent atténué, texte plus grand ; la luminosité du téléphone n'est pas modifiée), export du carnet.
 
 ## 4. Données
 
@@ -95,7 +98,9 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | Android | Jetpack Compose, Android 8 minimum (`androidApp/`) |
 | Écrans | MVVM avec un état immuable |
 | Back-end | Supabase : Postgres, comptes, règles d'accès (RLS), migrations versionnées (`supabase/`) |
-| Synchro | File d'attente locale des modifications, envoyée au retour du réseau ; la dernière modification gagne |
+| Synchro | File d'attente locale des modifications, envoyée dès qu'il y a un compte et du réseau ; la dernière modification reçue gagne. Une fiche ou une nuit encore en attente n'est jamais écrasée par la copie du serveur. V1 : une suppression faite sur un autre téléphone n'est pas répercutée |
+| Connexion par code | Un code à 6 chiffres plutôt qu'un lien : rien à ouvrir, même parcours sur les deux téléphones (`supabase/templates/code.html`) |
+| Suppression de compte | Fonction serveur `supabase/functions/delete-account` : le profil et les nuits partent avec le compte, les fiches restent sans auteur, le carnet reste sur le téléphone |
 | Tests | Cœur partagé bien couvert, quelques parcours d'écran |
 | Automatisation | GitHub Actions (tests et builds), puis Codemagic pour TestFlight |
 | Plantages | Rapports d'Xcode et de la Play Console, aucun service tiers |
@@ -121,3 +126,14 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 4. Annuaire partagé : création, modification, historique, doublons.
 5. Modération : signalement, masquage, blocage, suppression du compte.
 6. Finitions : mode « champ », thèmes, accessibilité, version de test.
+
+## 10. Où on en est
+
+| Étape | État |
+| --- | --- |
+| 1. Fondations | Fait |
+| 2. Carnet complet hors ligne | Fait : nuit (titre, souvenirs, partage, département), notes et commentaires, création avec doublons suggérés, fiches, filtres par style, thèmes, mode « champ », export |
+| 3. Comptes et synchronisation | Fait pour l'email (mot de passe et code). **Reste : Apple et Google**, qui demandent les comptes développeur et les identifiants OAuth |
+| 4. Annuaire partagé | Partiel : création envoyée et annuaire reçu, historique côté serveur. Reste : modifier une fiche, voir et rétablir l'historique, fusions |
+| 5. Modération | Partiel : suppression du compte, règles et masquage côté serveur. Reste : écrans de signalement et de blocage, conditions d'utilisation, contact |
+| 6. Finitions | À faire : accessibilité, icônes, projet Supabase de production, version de test |

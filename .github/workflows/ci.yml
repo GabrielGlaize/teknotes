@@ -38,5 +38,5 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime,realtime,storage-api,supavisor
+      - run: supabase start -x studio,imgproxy,vector,logflare,realtime,storage-api,supavisor
       - run: supabase test db

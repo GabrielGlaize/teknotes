@@ -1,7 +1,7 @@
 -- Access rules of the directory and the notebook, checked as anon and as real users.
 -- Run with: supabase test db
 BEGIN;
-SELECT plan(19);
+SELECT plan(21);
 
 -- Four accounts: A, B and C have a profile, D has none yet.
 INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -100,6 +100,14 @@ SELECT is(
 
 INSERT INTO public.blocks (blocker, blocked) VALUES ('b0000000-0000-4000-8000-000000000002', 'a0000000-0000-4000-8000-000000000001');
 SELECT is((SELECT count(*) FROM public.nights), 0::bigint, 'a blocked person''s nights disappear');
+
+-- Deleting an account keeps what it added to the directory, without author ---
+RESET ROLE;
+DELETE FROM auth.users WHERE id = 'a0000000-0000-4000-8000-000000000001';
+SELECT is(
+  (SELECT created_by FROM public.soundsystems WHERE id = '5d000000-0000-4000-8000-0000000000aa'),
+  NULL, 'a deleted account leaves its soundsystems without author');
+SELECT is((SELECT count(*) FROM public.nights WHERE id = '11000000-0000-4000-8000-000000000002'), 0::bigint, 'and takes its nights with it');
 
 SELECT * FROM finish();
 ROLLBACK;

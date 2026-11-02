@@ -6,7 +6,18 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		7E0000000000000000000054 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7E0000000000000000000020 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7E0000000000000000000010;
+			remoteInfo = Teknotes;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		7E0000000000000000000052 /* TeknotesUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TeknotesUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E0000000000000000000002 /* Teknotes.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Teknotes.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -16,10 +27,22 @@
 			path = Teknotes;
 			sourceTree = "<group>";
 		};
+		7E0000000000000000000053 /* TeknotesUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = TeknotesUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		7E0000000000000000000011 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7E0000000000000000000056 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -33,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				7E0000000000000000000003 /* Teknotes */,
+				7E0000000000000000000053 /* TeknotesUITests */,
 				7E0000000000000000000004 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +65,7 @@
 			isa = PBXGroup;
 			children = (
 				7E0000000000000000000002 /* Teknotes.app */,
+				7E0000000000000000000052 /* TeknotesUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -71,6 +96,29 @@
 			productReference = 7E0000000000000000000002 /* Teknotes.app */;
 			productType = "com.apple.product-type.application";
 		};
+		7E0000000000000000000051 /* TeknotesUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 7E0000000000000000000060 /* Build configuration list for PBXNativeTarget "TeknotesUITests" */;
+			buildPhases = (
+				7E0000000000000000000055 /* Sources */,
+				7E0000000000000000000056 /* Frameworks */,
+				7E0000000000000000000057 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				7E0000000000000000000058 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				7E0000000000000000000053 /* TeknotesUITests */,
+			);
+			name = TeknotesUITests;
+			packageProductDependencies = (
+			);
+			productName = TeknotesUITests;
+			productReference = 7E0000000000000000000052 /* TeknotesUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -83,6 +131,10 @@
 				TargetAttributes = {
 					7E0000000000000000000010 = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					7E0000000000000000000051 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = 7E0000000000000000000010;
 					};
 				};
 			};
@@ -101,12 +153,20 @@
 			projectRoot = "";
 			targets = (
 				7E0000000000000000000010 /* Teknotes */,
+				7E0000000000000000000051 /* TeknotesUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		7E0000000000000000000013 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		7E0000000000000000000057 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -145,7 +205,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		7E0000000000000000000055 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		7E0000000000000000000058 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 7E0000000000000000000010 /* Teknotes */;
+			targetProxy = 7E0000000000000000000054 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		7E0000000000000000000041 /* Debug */ = {
@@ -204,6 +279,7 @@
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Teknotes;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -237,6 +313,7 @@
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Teknotes;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -258,6 +335,38 @@
 			};
 			name = Release;
 		};
+		7E0000000000000000000061 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R54P49WN7V;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.gabrielglaize.teknotes.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Teknotes;
+			};
+			name = Debug;
+		};
+		7E0000000000000000000062 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R54P49WN7V;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.gabrielglaize.teknotes.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Teknotes;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -275,6 +384,15 @@
 			buildConfigurations = (
 				7E0000000000000000000041 /* Debug */,
 				7E0000000000000000000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		7E0000000000000000000060 /* Build configuration list for PBXNativeTarget "TeknotesUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E0000000000000000000061 /* Debug */,
+				7E0000000000000000000062 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

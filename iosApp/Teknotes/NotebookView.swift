@@ -20,7 +20,7 @@ final class NotebookModel {
 }
 
 struct NotebookView: View {
-    @State var model: NotebookModel
+    let model: NotebookModel
     @State private var path: [String] = []
 
     var body: some View {
@@ -70,7 +70,8 @@ private struct NightRow: View {
             FlyerLabel(text: NightDate.format(night.date))
             Text(night.title.isEmpty ? (Departments.shared.byCode(code: night.department)?.label ?? "Département à préciser") : night.title)
                 .font(Theme.body(17, weight: 700))
-            Text(night.entryCount == 1 ? "1 son noté" : "\(night.entryCount) sons notés")
+            let count = night.entryCount == 1 ? "1 son noté" : "\(night.entryCount) sons notés"
+            Text(night.shared ? "\(count) · partagée" : count)
                 .font(Theme.body(14))
                 .foregroundStyle(Theme.mute)
         }

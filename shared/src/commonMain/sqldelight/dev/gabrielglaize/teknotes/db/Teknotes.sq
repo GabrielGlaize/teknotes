@@ -1,6 +1,7 @@
 -- Local database of the phone. The directory part is a cache of Supabase
 -- (filled by sync, or by demo data); the notebook part is the user's own.
--- The outbox of changes waiting for the network comes with the sync step.
+-- Every local change is also written to the outbox, sent when an account and the
+-- network are there.
 -- Lists (aliases, styles, links) are stored one item per line.
 
 CREATE TABLE soundsystem (
@@ -48,12 +49,31 @@ CREATE TABLE night_entry (
     night_id TEXT NOT NULL REFERENCES night(id) ON DELETE CASCADE,
     soundsystem_id TEXT,
     artist_id TEXT,
+    -- Name when it was added, shown if the entry later leaves the directory (hidden, merged).
+    label TEXT NOT NULL DEFAULT '',
     rating INTEGER,
     comment TEXT NOT NULL DEFAULT '',
     created_at INTEGER NOT NULL
 );
 
 CREATE INDEX night_entry_night ON night_entry(night_id);
+
+-- Changes waiting to be sent. Only the latest operation per row is kept: the row
+-- itself is read again when it is sent.
+CREATE TABLE outbox (
+    id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    entity TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX outbox_row ON outbox(entity, entity_id);
+
+CREATE TABLE setting (
+    key TEXT NOT NULL PRIMARY KEY,
+    value TEXT NOT NULL
+);
 
 -- Directory ------------------------------------------------------------------
 
@@ -95,6 +115,31 @@ ORDER BY soundsystem.name COLLATE NOCASE;
 countSoundsystems:
 SELECT count(*) FROM soundsystem;
 
+allMemberships:
+SELECT * FROM membership;
+
+removeMember:
+DELETE FROM membership WHERE soundsystem_id = ? AND artist_id = ?;
+
+-- A refresh from the server replaces the cache, except rows still waiting in the outbox.
+deleteSyncedSoundsystems:
+DELETE FROM soundsystem WHERE id NOT IN (SELECT entity_id FROM outbox WHERE entity = 'soundsystem');
+
+deleteSyncedArtists:
+DELETE FROM artist WHERE id NOT IN (SELECT entity_id FROM outbox WHERE entity = 'artist');
+
+deleteSyncedMemberships:
+DELETE FROM membership
+WHERE soundsystem_id || ':' || artist_id NOT IN (SELECT entity_id FROM outbox WHERE entity = 'membership');
+
+insertSoundsystemIfAbsent:
+INSERT OR IGNORE INTO soundsystem(id, name, aliases, department, styles, links, hidden, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+insertArtistIfAbsent:
+INSERT OR IGNORE INTO artist(id, name, aliases, styles, links, hidden, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
 -- Notebook -------------------------------------------------------------------
 
 insertNight:
@@ -124,8 +169,25 @@ GROUP BY night.id
 ORDER BY night.date DESC, night.created_at DESC;
 
 insertEntry:
-INSERT INTO night_entry(id, night_id, soundsystem_id, artist_id, rating, comment, created_at)
-VALUES (?, ?, ?, ?, ?, ?, ?);
+INSERT INTO night_entry(id, night_id, soundsystem_id, artist_id, label, rating, comment, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertNight:
+INSERT OR REPLACE INTO night(id, date, department, title, comment, shared, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertEntry:
+INSERT OR REPLACE INTO night_entry(id, night_id, soundsystem_id, artist_id, label, rating, comment, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+entryById:
+SELECT * FROM night_entry WHERE id = ?;
+
+allNights:
+SELECT * FROM night;
+
+allEntriesRaw:
+SELECT * FROM night_entry;
 
 updateEntry:
 UPDATE night_entry SET rating = ?, comment = ? WHERE id = ?;
@@ -136,7 +198,7 @@ DELETE FROM night_entry WHERE id = ?;
 entriesOfNight:
 SELECT
     night_entry.*,
-    coalesce(soundsystem.name, artist.name, '') AS label
+    coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
 LEFT JOIN artist ON artist.id = night_entry.artist_id
@@ -146,8 +208,37 @@ ORDER BY night_entry.created_at;
 allEntries:
 SELECT
     night_entry.*,
-    coalesce(soundsystem.name, artist.name, '') AS label
+    coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
 LEFT JOIN artist ON artist.id = night_entry.artist_id
 ORDER BY night_entry.created_at;
+
+-- Outbox ---------------------------------------------------------------------
+
+enqueue:
+INSERT OR REPLACE INTO outbox(entity, entity_id, operation, created_at) VALUES (?, ?, ?, ?);
+
+pendingChanges:
+SELECT * FROM outbox ORDER BY id;
+
+isPending:
+SELECT count(*) FROM outbox WHERE entity = ? AND entity_id = ?;
+
+removeChange:
+DELETE FROM outbox WHERE id = ?;
+
+-- A night deleted before being sent: its entries no longer need to go either.
+dropEntryChangesOfNight:
+DELETE FROM outbox WHERE entity = 'night_entry' AND entity_id IN (SELECT id FROM night_entry WHERE night_id = ?);
+
+countPending:
+SELECT count(*) FROM outbox;
+
+-- Settings -------------------------------------------------------------------
+
+setting:
+SELECT value FROM setting WHERE key = ?;
+
+putSetting:
+INSERT OR REPLACE INTO setting(key, value) VALUES (?, ?);

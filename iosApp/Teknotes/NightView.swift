@@ -17,6 +17,7 @@ final class NightModel {
     init(teknotes: Teknotes, nightId: String) {
         self.teknotes = teknotes
         self.nightId = nightId
+        night = teknotes.notebook.night(id: nightId)
         watchers.append(teknotes.notebook.watchNights { [weak self] nights in
             self?.night = nights.first { $0.id == nightId }
         })
@@ -31,22 +32,26 @@ final class NightModel {
         query = ""
     }
 
-    /// Nothing matched: creates the soundsystem in the directory, then adds it.
-    func createAndAdd() {
-        let soundsystem = teknotes.directory.createSoundsystem(name: query, aliases: [], department: nil, styles: [], links: [])
-        add(DirectoryHit(id: soundsystem.id, kind: .soundsystem, name: soundsystem.name, matchedAlias: nil, score: 100))
-    }
-
     func rate(_ entry: NightEntry, _ rating: Int32) {
         let same = entry.rating?.int32Value == rating
-        teknotes.notebook.rateEntry(entryId: entry.id, rating: same ? nil : KotlinInt(int: rating), comment: entry.comment)
+        teknotes.notebook.updateEntry(entryId: entry.id, rating: same ? nil : KotlinInt(int: rating), comment: entry.comment)
+    }
+
+    func comment(_ entry: NightEntry, _ text: String) {
+        teknotes.notebook.updateEntry(entryId: entry.id, rating: entry.rating, comment: text)
     }
 
     func remove(_ entry: NightEntry) { teknotes.notebook.removeEntry(entryId: entry.id) }
 
-    func setDepartment(_ code: String?) {
+    func edit(department: String?? = nil, title: String? = nil, comment: String? = nil, shared: Bool? = nil) {
         guard let night else { return }
-        teknotes.notebook.updateNight(id: night.id, department: code, title: night.title, comment: night.comment, shared: night.shared)
+        teknotes.notebook.updateNight(
+            id: night.id,
+            department: department ?? night.department,
+            title: title ?? night.title,
+            comment: comment ?? night.comment,
+            shared: shared ?? night.shared
+        )
     }
 
     func delete() { teknotes.notebook.deleteNight(id: nightId) }
@@ -54,6 +59,10 @@ final class NightModel {
 
 struct NightView: View {
     @State var model: NightModel
+    @State private var title = ""
+    @State private var memories = ""
+    @State private var creating: String?
+    @State private var confirmDelete = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -61,7 +70,7 @@ struct NightView: View {
             Section {
                 Menu {
                     ForEach(Departments.shared.all, id: \.code) { department in
-                        Button(department.label) { model.setDepartment(department.code) }
+                        Button(department.label) { model.edit(department: .some(department.code)) }
                     }
                 } label: {
                     Label(
@@ -74,15 +83,17 @@ struct NightView: View {
                     .autocorrectionDisabled()
             }
 
-            if !model.query.trimmingCharacters(in: .whitespaces).isEmpty {
+            let query = model.query.trimmingCharacters(in: .whitespaces)
+            if !query.isEmpty {
                 Section {
                     ForEach(model.results, id: \.id) { hit in
                         Button { model.add(hit) } label: { HitRow(hit: hit) }
                     }
                     Button {
-                        model.createAndAdd()
+                        creating = query
+                        model.query = ""
                     } label: {
-                        Label("Créer « \(model.query.trimmingCharacters(in: .whitespaces)) »", systemImage: "plus")
+                        Label("Créer « \(query) »", systemImage: "plus")
                     }
                 }
             }
@@ -94,34 +105,86 @@ struct NightView: View {
                         .foregroundStyle(Theme.mute)
                 }
                 ForEach(model.entries, id: \.id) { entry in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(entry.label).font(Theme.body(17, weight: 700))
-                        // Big touch targets: rated at night, often with one hand.
-                        HStack(spacing: 4) {
-                            ForEach(1...5, id: \.self) { star in
-                                Image(systemName: (entry.rating?.int32Value ?? 0) >= star ? "circle.fill" : "circle")
-                                    .font(.system(size: 22))
-                                    .foregroundStyle(Theme.pink)
-                                    .frame(width: 40, height: 40)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture { model.rate(entry, Int32(star)) }
-                            }
-                        }
-                    }
-                    .swipeActions { Button("Retirer", role: .destructive) { model.remove(entry) } }
+                    EntryRow(entry: entry, model: model)
+                        .swipeActions { Button("Retirer", role: .destructive) { model.remove(entry) } }
                 }
             } header: {
                 FlyerLabel(text: "Entendu cette nuit")
             }
+
+            Section {
+                TextField("Titre (facultatif)", text: $title)
+                    .onChange(of: title) { _, value in model.edit(title: value) }
+                TextField("Souvenirs de la nuit", text: $memories, axis: .vertical)
+                    .lineLimit(3...8)
+                    .onChange(of: memories) { _, value in model.edit(comment: value) }
+                Toggle(isOn: Binding(get: { model.night?.shared ?? false }, set: { model.edit(shared: $0) })) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Partager cette nuit").font(Theme.body(16, weight: 600))
+                        Text("Visible des autres à partir du lendemain, avec le département seulement. Il faut un compte.")
+                            .font(Theme.body(13))
+                            .foregroundStyle(Theme.mute)
+                    }
+                }
+            } header: {
+                FlyerLabel(text: "La nuit")
+            }
         }
+        .flyerBackground()
         .navigationTitle(model.night.map { NightDate.format($0.date) } ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            title = model.night?.title ?? ""
+            memories = model.night?.comment ?? ""
+        }
         .toolbar {
+            Button("Supprimer", role: .destructive) { confirmDelete = true }
+        }
+        .confirmationDialog("Supprimer cette nuit ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
                 model.delete()
                 dismiss()
             }
+        } message: {
+            Text("Elle disparaît de ton carnet, avec tout ce que tu y as noté.")
         }
+        .sheet(item: Binding(get: { creating.map(CreationName.init) }, set: { creating = $0?.name })) { item in
+            CreateView(teknotes: model.teknotes, kind: .soundsystem, name: item.name, forNight: true) { hit in
+                model.add(hit)
+            }
+        }
+    }
+}
+
+private struct CreationName: Identifiable {
+    let name: String
+    var id: String { name }
+}
+
+private struct EntryRow: View {
+    let entry: NightEntry
+    let model: NightModel
+    @State private var comment = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(entry.label).font(Theme.body(17, weight: 700))
+            // Big touch targets: rated at night, often with one hand.
+            HStack(spacing: 4) {
+                ForEach(1...5, id: \.self) { star in
+                    Image(systemName: (entry.rating?.int32Value ?? 0) >= star ? "circle.fill" : "circle")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Theme.pink)
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                        .onTapGesture { model.rate(entry, Int32(star)) }
+                }
+            }
+            TextField("Un mot sur ce set", text: $comment, axis: .vertical)
+                .font(Theme.body(15))
+                .onChange(of: comment) { _, value in model.comment(entry, value) }
+        }
+        .onAppear { comment = entry.comment }
     }
 }
 
