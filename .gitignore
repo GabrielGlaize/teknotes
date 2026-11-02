@@ -1,0 +1,24 @@
+# Gradle / Kotlin
+.gradle/
+build/
+.kotlin/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+captures/
+
+# Xcode
+iosApp/**/xcuserdata/
+iosApp/build/
+DerivedData/
+*.xcuserstate
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+
+# macOS
+.DS_Store

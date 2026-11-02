@@ -1,0 +1,153 @@
+-- Local database of the phone. The directory part is a cache of Supabase
+-- (filled by sync, or by demo data); the notebook part is the user's own.
+-- The outbox of changes waiting for the network comes with the sync step.
+-- Lists (aliases, styles, links) are stored one item per line.
+
+CREATE TABLE soundsystem (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    aliases TEXT NOT NULL DEFAULT '',
+    department TEXT,
+    styles TEXT NOT NULL DEFAULT '',
+    links TEXT NOT NULL DEFAULT '',
+    hidden INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE artist (
+    id TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    aliases TEXT NOT NULL DEFAULT '',
+    styles TEXT NOT NULL DEFAULT '',
+    links TEXT NOT NULL DEFAULT '',
+    hidden INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE membership (
+    soundsystem_id TEXT NOT NULL REFERENCES soundsystem(id) ON DELETE CASCADE,
+    artist_id TEXT NOT NULL REFERENCES artist(id) ON DELETE CASCADE,
+    PRIMARY KEY (soundsystem_id, artist_id)
+);
+
+CREATE TABLE night (
+    id TEXT NOT NULL PRIMARY KEY,
+    date TEXT NOT NULL,
+    department TEXT,
+    title TEXT NOT NULL DEFAULT '',
+    comment TEXT NOT NULL DEFAULT '',
+    shared INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX night_date ON night(date);
+
+CREATE TABLE night_entry (
+    id TEXT NOT NULL PRIMARY KEY,
+    night_id TEXT NOT NULL REFERENCES night(id) ON DELETE CASCADE,
+    soundsystem_id TEXT,
+    artist_id TEXT,
+    rating INTEGER,
+    comment TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX night_entry_night ON night_entry(night_id);
+
+-- Directory ------------------------------------------------------------------
+
+upsertSoundsystem:
+INSERT OR REPLACE INTO soundsystem(id, name, aliases, department, styles, links, hidden, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+upsertArtist:
+INSERT OR REPLACE INTO artist(id, name, aliases, styles, links, hidden, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+addMember:
+INSERT OR IGNORE INTO membership(soundsystem_id, artist_id) VALUES (?, ?);
+
+visibleSoundsystems:
+SELECT * FROM soundsystem WHERE hidden = 0 ORDER BY name COLLATE NOCASE;
+
+visibleArtists:
+SELECT * FROM artist WHERE hidden = 0 ORDER BY name COLLATE NOCASE;
+
+soundsystemById:
+SELECT * FROM soundsystem WHERE id = ?;
+
+artistById:
+SELECT * FROM artist WHERE id = ?;
+
+membersOf:
+SELECT artist.* FROM artist
+JOIN membership ON membership.artist_id = artist.id
+WHERE membership.soundsystem_id = ? AND artist.hidden = 0
+ORDER BY artist.name COLLATE NOCASE;
+
+soundsystemsOf:
+SELECT soundsystem.* FROM soundsystem
+JOIN membership ON membership.soundsystem_id = soundsystem.id
+WHERE membership.artist_id = ? AND soundsystem.hidden = 0
+ORDER BY soundsystem.name COLLATE NOCASE;
+
+countSoundsystems:
+SELECT count(*) FROM soundsystem;
+
+-- Notebook -------------------------------------------------------------------
+
+insertNight:
+INSERT INTO night(id, date, department, title, comment, shared, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+
+updateNight:
+UPDATE night SET department = ?, title = ?, comment = ?, shared = ?, updated_at = ? WHERE id = ?;
+
+deleteNight:
+DELETE FROM night WHERE id = ?;
+
+deleteEntriesOfNight:
+DELETE FROM night_entry WHERE night_id = ?;
+
+nightById:
+SELECT * FROM night WHERE id = ?;
+
+nightByDate:
+SELECT * FROM night WHERE date = ? ORDER BY created_at LIMIT 1;
+
+nightSummaries:
+SELECT night.*, count(night_entry.id) AS entry_count
+FROM night
+LEFT JOIN night_entry ON night_entry.night_id = night.id
+GROUP BY night.id
+ORDER BY night.date DESC, night.created_at DESC;
+
+insertEntry:
+INSERT INTO night_entry(id, night_id, soundsystem_id, artist_id, rating, comment, created_at)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+updateEntry:
+UPDATE night_entry SET rating = ?, comment = ? WHERE id = ?;
+
+deleteEntry:
+DELETE FROM night_entry WHERE id = ?;
+
+entriesOfNight:
+SELECT
+    night_entry.*,
+    coalesce(soundsystem.name, artist.name, '') AS label
+FROM night_entry
+LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+LEFT JOIN artist ON artist.id = night_entry.artist_id
+WHERE night_entry.night_id = ?
+ORDER BY night_entry.created_at;
+
+allEntries:
+SELECT
+    night_entry.*,
+    coalesce(soundsystem.name, artist.name, '') AS label
+FROM night_entry
+LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+LEFT JOIN artist ON artist.id = night_entry.artist_id
+ORDER BY night_entry.created_at;
