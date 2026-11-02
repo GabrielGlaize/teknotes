@@ -29,8 +29,8 @@ class Teknotes internal constructor(
     private val remote = config?.let { createRemote(it, inMemorySession) }
 
     val directory = DirectoryRepository(queries, outbox, clock)
-    val notebook = NotebookRepository(queries, outbox, clock)
-    val settings = SettingsRepository(queries)
+    val notebook = NotebookRepository(queries, outbox, clock) { account.canContribute }
+    val settings = SettingsRepository(queries, clock)
     val sync: Sync = Sync(remote, queries, directory, notebook, { account }, scope, clock)
     val account = Account(remote, scope, onSignedIn = { sync.accountReady() }, onSignedOut = { sync.accountGone() })
     val community = Community(remote, directory) { account }

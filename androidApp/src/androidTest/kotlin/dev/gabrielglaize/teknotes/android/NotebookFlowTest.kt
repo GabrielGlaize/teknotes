@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
@@ -33,16 +34,27 @@ class NotebookFlowTest {
         compose.onNodeWithText(text).click()
     }
 
-    private fun field(label: String) = compose.onNode(hasSetTextAction() and hasText(label))
+    private fun field(label: String) = compose.onNode(hasSetTextAction() and hasContentDescription(label))
+
+    /** A fresh install starts with the tutorial; the tests go through it without a code. */
+    @org.junit.Before
+    fun passTheIntro() {
+        compose.waitForIdle()
+        if (compose.onAllNodesWithText("Passer").fetchSemanticsNodes().isEmpty()) return
+        clickText("Passer")
+        clickText("Plus tard")
+    }
 
     private fun signUpIfNeeded() {
         clickText("Profil")
         compose.waitForIdle()
-        if (compose.onAllNodesWithText("Email").fetchSemanticsNodes().isEmpty()) return
-        val id = Random.nextInt(1_000_000_000)
-        field("Email").performTextInput("android$id@teknotes.test")
-        field("Mot de passe").performTextInput("mot-de-passe-solide")
+        if (compose.onAllNodesWithText("Créer un compte").fetchSemanticsNodes().isEmpty()) return
         clickText("Créer un compte")
+        val id = Random.nextInt(1_000_000_000)
+        waitForText("Email")
+        field("Email").performTextInput("android$id@teknotes.test")
+        field("Mot de passe (6 caractères minimum)").performTextInput("mot-de-passe-solide")
+        clickText("Créer mon compte")
         waitForText("Pseudo")
         field("Pseudo").performTextInput("Android$id")
         compose.onNodeWithText("Valider").assertIsNotEnabled()
@@ -53,19 +65,19 @@ class NotebookFlowTest {
     @Test
     fun aNightIsNotedInTwoTapsEvenWithATypo() {
         clickText("J'y suis")
-        waitForText("Soundsystem ou artiste entendu")
-        field("Soundsystem ou artiste entendu").performTextInput("kaisson")
-        waitForText("Caisson Noir")
-        compose.onAllNodesWithText("Caisson Noir")[0].click()
+        waitForText("Artiste ou soundsystem")
+        field("Artiste ou soundsystem").performTextInput("kaisson")
+        waitForText("Rouille (Caisson Noir)")
+        compose.onAllNodesWithText("Rouille (Caisson Noir)")[0].click()
         waitForText("Un mot sur ce set")
-        compose.onAllNodesWithText("Caisson Noir")[0].assertIsDisplayed()
+        compose.onAllNodesWithText("Rouille (Caisson Noir)")[0].assertIsDisplayed()
     }
 
     @Test
     fun aDuplicateIsSuggestedBeforeCreating() {
         clickText("Annuaire")
-        waitForText("Ajouter un soundsystem", substring = true)
-        compose.onNode(hasText("Ajouter un soundsystem", substring = true)).click()
+        compose.waitUntil(5_000) { compose.onAllNodes(hasContentDescription("Ajouter un soundsystem")).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasContentDescription("Ajouter un soundsystem")).click()
         waitForText("Nom")
         field("Nom").performTextInput("Teknokrate")
         waitForText("Teknokrates")
@@ -77,19 +89,20 @@ class NotebookFlowTest {
         signUpIfNeeded()
         waitForText("Se déconnecter")
         clickText("Annuaire")
+        clickText("Public")
         clickText("Basse Marée")
         waitForText("Modifier la fiche")
         compose.onNodeWithText("Modifier la fiche").performScrollTo().click()
 
         val alias = "Alias${Random.nextInt(1_000_000)}"
         waitForText("Aussi appelé", substring = true)
-        compose.onNode(hasSetTextAction() and hasText("Aussi appelé", substring = true)).performTextInput(alias)
+        field("Aussi appelé (séparés par des virgules)").performTextInput(alias)
         compose.onNodeWithText("Enregistrer").performScrollTo().click()
         waitForText(alias, substring = true)
 
         compose.onNodeWithText("Voir l'historique").performScrollTo().click()
         waitForText("Modifié : Aussi appelé", timeout = 20_000)
-        compose.onNodeWithText("Modifié : Aussi appelé").assertIsDisplayed()
+        compose.onAllNodesWithText("Modifié : Aussi appelé")[0].assertIsDisplayed()
     }
 
     @Test
@@ -97,6 +110,7 @@ class NotebookFlowTest {
         signUpIfNeeded()
         waitForText("Se déconnecter")
         clickText("Annuaire")
+        clickText("Public")
         clickText("Basse Marée")
         waitForText("Signaler un problème")
         compose.onNodeWithText("Signaler un problème").performScrollTo().click()

@@ -1,7 +1,7 @@
 -- Access rules of the directory and the notebook, checked as anon and as real users.
 -- Run with: supabase test db
 BEGIN;
-SELECT plan(21);
+SELECT plan(23);
 
 -- Four accounts: A, B and C have a profile, D has none yet.
 INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
@@ -80,9 +80,15 @@ VALUES ('12000000-0000-4000-8000-000000000001', '11000000-0000-4000-8000-0000000
 SELECT throws_ok(
   $$INSERT INTO public.night_entries (id, night_id, soundsystem_id, rating) VALUES (gen_random_uuid(), '11000000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000001', 6)$$,
   '23514', NULL, 'a rating goes from 1 to 5');
-SELECT throws_ok(
+SELECT lives_ok(
   $$INSERT INTO public.night_entries (id, night_id, soundsystem_id, artist_id) VALUES (gen_random_uuid(), '11000000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000001', '5a000000-0000-4000-8000-000000000001')$$,
-  '23514', NULL, 'an entry is either a soundsystem or an artist');
+  'a set names an artist on a soundsystem');
+SELECT throws_ok(
+  $$INSERT INTO public.night_entries (id, night_id) VALUES (gen_random_uuid(), '11000000-0000-4000-8000-000000000001')$$,
+  '23514', NULL, 'and names at least one of the two');
+SELECT throws_ok(
+  $$UPDATE public.soundsystems SET styles = ARRAY[repeat('x', 33)] WHERE id = '5d000000-0000-4000-8000-000000000001'$$,
+  '23514', NULL, 'a new style stays short');
 
 SELECT set_config('request.jwt.claims', '{"sub": "b0000000-0000-4000-8000-000000000002", "role": "authenticated"}', true);
 SELECT results_eq(

@@ -40,5 +40,9 @@ object Departments {
         "976" to "Mayotte",
     ).map { (code, name) -> Department(code, name) } + Department(Department.ABROAD, "Hors de France")
 
+    /** All of them, or those matching [query] by name or code. */
+    fun search(query: String): List<Department> =
+        if (Search.normalize(query).isEmpty()) all else all.filter { Search.score(query, it.name) != null || it.code == query.trim() }
+
     fun byCode(code: String?): Department? = all.firstOrNull { it.code == code }
 }

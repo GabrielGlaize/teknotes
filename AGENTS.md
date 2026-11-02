@@ -10,7 +10,9 @@ Lire d'abord `docs/CAHIER_DES_CHARGES.md` : c'est la référence. Toute évoluti
 - **Swift ne reçoit pas de Flow** : chaque flux exposé à iOS a sa fonction `watchXxx(onChange)` qui renvoie un `Watcher` à annuler. Les fonctions `suspend` exposées portent `@Throws` et lèvent `TeknotesException`, dont le message s'affiche tel quel : sans `@Throws`, une exception fait planter l'app iOS.
 - **Ce qui demande le serveur et un compte passe par `Community`** (historique, fusions, signalements, blocages, nuits partagées) ; le carnet n'en dépend jamais.
 - **Toute modification locale passe par l'outbox** (`Outbox.record`) : sinon elle ne part jamais sur le serveur.
-- **Listes fermées** (styles, départements) : le Kotlin (`Style.kt`, `Departments.kt`) et le SQL (`*_reference_data.sql`) restent identiques. Les données de démo de `DemoData.kt` et `supabase/seed.sql` aussi.
+- **Départements** (liste fermée) : le Kotlin (`Departments.kt`) et le SQL (`*_reference_data.sql`) restent identiques. Les données de démo de `DemoData.kt` et `supabase/seed.sql` aussi. Les styles sont une liste ouverte (`Style.kt` ne fait que suggérer).
+- **Partager une nuit demande un compte** : la règle est dans `NotebookRepository.updateNight`, les écrans ne font que l'annoncer.
+- **Design** : « Grands chiffres » : police du système, papier et encre sans autre couleur, rangs et scores énormes, filets. Le public n'affiche jamais de note. Composants dans `iosApp/Teknotes/Theme.swift` et `androidApp/.../ui/Common.kt`.
 
 ## Supabase
 

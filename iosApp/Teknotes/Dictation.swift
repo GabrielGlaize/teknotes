@@ -87,7 +87,7 @@ struct DictationButton: View {
         } label: {
             Image(systemName: dictation.listening ? "mic.fill" : "mic")
                 .font(.system(size: 20))
-                .foregroundStyle(dictation.listening ? Theme.pink : Theme.mute)
+                .foregroundStyle(dictation.listening ? Theme.accent : Theme.mute)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }

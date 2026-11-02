@@ -51,6 +51,68 @@ class DirectoryRepository internal constructor(
         return Search.rank(Search.soundsystems(query, soundsystems) + Search.artists(query, artists))
     }
 
+    /**
+     * What to add to a night for [query], best first. A soundsystem comes with its artists and an
+     * artist with their soundsystems, so a set is added in one tap: "Rouille (Caisson Noir)".
+     */
+    fun setChoices(query: String): List<SetChoice> = search(query).flatMap { hit ->
+        when (hit.kind) {
+            DirectoryHit.Kind.SOUNDSYSTEM ->
+                listOf(SetChoice(null, null, hit.id, hit.name)) +
+                    membersOf(hit.id).map { SetChoice(it.id, it.name, hit.id, hit.name) }
+            DirectoryHit.Kind.ARTIST ->
+                soundsystemsOf(hit.id).map { SetChoice(hit.id, hit.name, it.id, it.name) } +
+                    SetChoice(hit.id, hit.name, null, null)
+        }
+    }.distinct()
+
+    /** How a directory entry joins a night: an artist with a single soundsystem comes with it. */
+    fun defaultChoice(hit: DirectoryHit): SetChoice = when (hit.kind) {
+        DirectoryHit.Kind.SOUNDSYSTEM -> SetChoice(null, null, hit.id, hit.name)
+        DirectoryHit.Kind.ARTIST -> {
+            val only = soundsystemsOf(hit.id).singleOrNull()
+            SetChoice(hit.id, hit.name, only?.id, only?.name)
+        }
+    }
+
+    /** Entries of one kind to pick from: all of them, or those matching [query]. */
+    fun browse(kind: DirectoryHit.Kind, query: String): List<DirectoryHit> {
+        if (Search.normalize(query).isNotEmpty()) return search(query).filter { it.kind == kind }
+        return when (kind) {
+            DirectoryHit.Kind.SOUNDSYSTEM -> allSoundsystemsNow().map { DirectoryHit(it.id, kind, it.name, null, 0) }
+            DirectoryHit.Kind.ARTIST -> queries.visibleArtists(artistMapper).executeAsList().map { DirectoryHit(it.id, kind, it.name, null, 0) }
+        }
+    }
+
+    /** Who plays where, for the lines of a list. */
+    fun links(): DirectoryLinks {
+        val rows = queries.visibleMemberships().executeAsList()
+        return DirectoryLinks(
+            soundsystemsOfArtist = rows.groupBy({ it.artist_id }, { it.soundsystem_name }),
+            artistsOfSoundsystem = rows.groupBy({ it.soundsystem_id }, { it.artist_name }),
+        )
+    }
+
+    /**
+     * Styles to pick from, the most used first, narrowed by [query] (typos tolerated). The common
+     * ones are always there when choosing for an entry; [usedOnly] keeps what the directory has.
+     */
+    fun styleChoices(query: String, usedOnly: Boolean): List<Style> {
+        val used = (allSoundsystemsNow().flatMap { it.styles } + queries.visibleArtists(artistMapper).executeAsList().flatMap { it.styles })
+            .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.map { it.key }
+        val all = if (usedOnly) used else (used + Style.common).distinct()
+        if (Search.normalize(query).isEmpty()) return all
+        return all.mapNotNull { style -> Search.score(query, style.label)?.let { style to it } }
+            .sortedByDescending { it.second }.map { it.first }
+    }
+
+    /** The style typed by someone: one that already exists if it's the same word, else a new one. */
+    fun styleNamed(text: String): Style? {
+        val style = Style.fromLabel(text) ?: return null
+        val key = Search.normalize(style.label)
+        return styleChoices("", usedOnly = true).firstOrNull { Search.normalize(it.label) == key } ?: style
+    }
+
     /** Existing entries that look like [name], shown before creating a new one to avoid duplicates. */
     fun lookalikes(name: String): List<DirectoryHit> = search(name).take(3)
 
@@ -191,6 +253,6 @@ class DirectoryRepository internal constructor(
     fun watchArtists(onChange: (List<Artist>) -> Unit): Watcher = artists().watch(onChange)
 }
 
-private fun String.toStyles(): List<Style> = splitLines().mapNotNull(Style::fromId)
+private fun String.toStyles(): List<Style> = splitLines().map(Style::fromId)
 
 private fun List<String>.clean() = map { it.trim() }.filter { it.isNotEmpty() }.distinct()

@@ -49,14 +49,14 @@ INSERT INTO public.nights (id, owner, date, department, title, comment, shared) 
    'Du dub à l''aube, parfait pour la descente.', false);
 
 INSERT INTO public.night_entries (id, night_id, soundsystem_id, artist_id, rating, comment) VALUES
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000001', NULL, 5, 'Mur de son immense'),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000001', NULL, '5a000000-0000-4000-8000-000000000001', 4, 'Set hardtek très propre'),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000001', '5a000000-0000-4000-8000-000000000009', 5, 'Mur de son immense'),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000001', '5a000000-0000-4000-8000-000000000001', 4, 'Set hardtek très propre'),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000001', '5d000000-0000-4000-8000-000000000004', NULL, 3, ''),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000002', '5d000000-0000-4000-8000-000000000004', NULL, 5, 'Le meilleur frenchcore de l''année'),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000002', NULL, '5a000000-0000-4000-8000-000000000007', 4, ''),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000002', '5d000000-0000-4000-8000-000000000004', '5a000000-0000-4000-8000-000000000006', 5, 'Le meilleur frenchcore de l''année'),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000002', '5d000000-0000-4000-8000-000000000004', '5a000000-0000-4000-8000-000000000007', 4, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000003', '5d000000-0000-4000-8000-000000000002', NULL, 4, ''),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000003', NULL, '5a000000-0000-4000-8000-000000000002', 5, 'Montée de malade'),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000003', NULL, '5a000000-0000-4000-8000-000000000005', NULL, ''),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000003', '5d000000-0000-4000-8000-000000000002', '5a000000-0000-4000-8000-000000000002', 5, 'Montée de malade'),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000003', '5d000000-0000-4000-8000-000000000002', '5a000000-0000-4000-8000-000000000005', NULL, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000004', '5d000000-0000-4000-8000-000000000006', NULL, 4, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000004', NULL, '5a000000-0000-4000-8000-000000000009', 3, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000005', '5d000000-0000-4000-8000-000000000007', NULL, 5, 'Descente idéale'),
@@ -72,7 +72,7 @@ INSERT INTO public.nights (id, owner, date, department, title, shared) VALUES
 
 INSERT INTO public.night_entries (id, night_id, soundsystem_id, artist_id, rating, comment) VALUES
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000011', '5d000000-0000-4000-8000-000000000003', NULL, 5, ''),
-  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000011', NULL, '5a000000-0000-4000-8000-000000000003', 4, ''),
+  (gen_random_uuid(), 'de100000-0000-4000-8000-000000000011', '5d000000-0000-4000-8000-000000000003', '5a000000-0000-4000-8000-000000000003', 4, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000012', '5d000000-0000-4000-8000-000000000001', NULL, 4, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000013', '5d000000-0000-4000-8000-000000000006', NULL, 5, ''),
   (gen_random_uuid(), 'de100000-0000-4000-8000-000000000014', '5d000000-0000-4000-8000-000000000001', NULL, NULL, '');
@@ -83,7 +83,7 @@ BEGIN;
 SELECT set_config('request.jwt.claims', '{"sub": "de000000-0000-4000-8000-000000000002", "role": "authenticated"}', true);
 UPDATE public.soundsystems SET aliases = aliases || 'Caisson'::text WHERE id = '5d000000-0000-4000-8000-000000000001';
 SELECT set_config('request.jwt.claims', '{"sub": "de000000-0000-4000-8000-000000000003", "role": "authenticated"}', true);
-UPDATE public.soundsystems SET styles = styles || 'acid'::public.music_style WHERE id = '5d000000-0000-4000-8000-000000000001';
+UPDATE public.soundsystems SET styles = styles || 'acid'::text WHERE id = '5d000000-0000-4000-8000-000000000001';
 SELECT set_config('request.jwt.claims', '{"sub": "de000000-0000-4000-8000-000000000004", "role": "authenticated"}', true);
 UPDATE public.soundsystems SET links = ARRAY['https://soundcloud.com/exemple-teknokrates'] WHERE id = '5d000000-0000-4000-8000-000000000006';
 UPDATE public.artists SET aliases = aliases || 'Dj Rouille'::text WHERE id = '5a000000-0000-4000-8000-000000000001';

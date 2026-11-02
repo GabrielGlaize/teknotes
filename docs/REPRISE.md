@@ -22,7 +22,7 @@ Spécifique à l'iPhone : `xcodebuild` veut l'UDID matériel, `devicectl` l'iden
 - Ne pas redécrire le projet : renvoyer vers ce fichier et le cahier des charges.
 
 ## État de l'essai sur iPhone (2 novembre 2026)
-App installée sur l'iPhone 15 de Gabriel par `scripts/iphone.sh install`. Reste à lui : faire confiance au développeur, ouvrir l'app, se connecter avec le compte de démo. Ses retours d'essai (saisie de nuit, mode champ, micro, synchro) sont la prochaine source de travail. Le serveur de démo n'est utile que pendant l'essai : `supabase stop` ensuite.
+App installée sur un iPhone de test par `scripts/iphone.sh install`. Reste à faire : faire confiance au développeur, ouvrir l'app, se connecter avec le compte de démo. Ses premiers retours (2 novembre) ont été traités : clavier, sets artiste (soundsystem), styles libres, annuaire personnel et public, partage réservé aux comptes, écrans de compte séparés, mode champ retiré, nouveau design sur les deux apps. Design ensuite choisi sur maquettes : Grands chiffres, avec classement personnel, code, tuto, astuce et glissement entre écrans (mémoire de l'agent : teknotes-design). Les retours suivants sont la prochaine source de travail. Le serveur de démo n'est utile que pendant l'essai : `supabase stop` ensuite.
 
 ## À faire ensuite (par priorité)
 1. Corriger ce que l'essai sur iPhone révèle.

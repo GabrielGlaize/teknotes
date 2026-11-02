@@ -76,8 +76,8 @@ internal data class ProfileRow(val id: String, val pseudo: String)
 internal fun Soundsystem.toRow() = SoundsystemRow(id, name, aliases, department, styles.map { it.id }, links)
 
 internal fun SoundsystemRow.toModel() =
-    Soundsystem(id, name, aliases, department, styles.mapNotNull(Style::fromId), links)
+    Soundsystem(id, name, aliases, department, styles.map(Style::fromId), links)
 
 internal fun Artist.toRow() = ArtistRow(id, name, aliases, styles.map { it.id }, links)
 
-internal fun ArtistRow.toModel() = Artist(id, name, aliases, styles.mapNotNull(Style::fromId), links)
+internal fun ArtistRow.toModel() = Artist(id, name, aliases, styles.map(Style::fromId), links)

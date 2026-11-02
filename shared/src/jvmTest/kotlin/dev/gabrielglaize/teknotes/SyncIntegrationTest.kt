@@ -227,6 +227,21 @@ class SyncIntegrationTest {
     }
 
     @Test
+    fun aSetKeepsItsArtistAndSoundsystemOnAnotherPhone() = runBlocking {
+        if (url == null || key == null) return@runBlocking
+        val a = signedUp()
+        val soundsystem = a.directory.createSoundsystem("Son ${Random.nextInt(1_000_000)}", emptyList(), null, listOf(Style.fromLabel("Hard groove")!!), emptyList())
+        val artist = a.directory.createArtist("Artiste ${Random.nextInt(1_000_000)}", emptyList(), emptyList(), emptyList(), listOf(soundsystem.id))
+        val night = a.notebook.createNight("2026-02-14", null, "")
+        a.notebook.addSet(night.id, SetChoice(artist.id, artist.name, soundsystem.id, soundsystem.name))
+        a.sync.syncNow()
+        assertEquals(null, a.sync.state.value.error, "the server accepts a set and a new style")
+
+        a.sync.syncNow()
+        assertEquals(listOf("Hard groove"), a.directory.soundsystem(soundsystem.id)?.styles?.map { it.label }, "the new style comes back from the server")
+    }
+
+    @Test
     fun sharedNightsShowOnTheEntryUntilThePersonIsBlocked() = runBlocking {
         if (url == null || key == null) return@runBlocking
         val a = signedUp()

@@ -1,7 +1,8 @@
 package dev.gabrielglaize.teknotes.android.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -9,30 +10,24 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,156 +35,163 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import dev.gabrielglaize.teknotes.AccountState
 import dev.gabrielglaize.teknotes.Departments
 import dev.gabrielglaize.teknotes.DirectoryHit
 import dev.gabrielglaize.teknotes.Night
 import dev.gabrielglaize.teknotes.NightEntry
+import dev.gabrielglaize.teknotes.SetChoice
 import dev.gabrielglaize.teknotes.Teknotes
 
 @Composable
-fun NotebookScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigator) {
+fun NotebookScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigator, onFirstNote: () -> Unit) {
     val model = viewModel { NotebookViewModel(teknotes) }
     val nights by model.nights.collectAsStateWithLifecycle()
+    val months = nights.groupBy { monthTitle(it.date) }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
-        item { ScreenTitle("Carnet", "Mes nuits") }
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentPadding = padding) {
         item {
-            Button(
-                onClick = { navigator.open(Route.Night(model.checkIn())) },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).height(64.dp),
-            ) {
-                Text("J'y suis", style = MaterialTheme.typography.titleLarge)
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                BigTitle("Tek'Notes !", Modifier.weight(1f))
+                Chip("J'y suis") { navigator.open(Route.Night(model.checkIn())) }
             }
-            Spacer(Modifier.height(16.dp))
         }
         if (nights.isEmpty()) {
-            item {
-                Text(
-                    "Aucune nuit notée pour l'instant. Le soir venu, appuie sur « J'y suis ».",
-                    Modifier.padding(20.dp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            item { TipCard("Tu viens d'entendre un set ? Note ton premier soundsystem ou artiste : tape son nom, touche la bonne ligne.", onFirstNote) }
         }
-        items(nights, key = { it.id }) { night ->
-            NightRow(night, onClick = { navigator.open(Route.Night(night.id)) })
-            HorizontalDivider(Modifier.padding(horizontal = 20.dp), color = MaterialTheme.colorScheme.outline)
+        months.forEach { (month, list) ->
+            item(key = month) { Text(month, Modifier.padding(top = 20.dp, bottom = 6.dp), style = textStyle(13.sp, 600), color = Mute) }
+            items(list, key = { it.id }) { night -> NightRow(night, onClick = { navigator.open(Route.Night(night.id)) }) }
         }
     }
 }
 
 @Composable
 private fun NightRow(night: Night, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 4.dp),
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-        overlineContent = { Text(formatNightDate(night.date).uppercase(), style = flyerLabel()) },
-        headlineContent = {
-            Text(night.title.ifBlank { Departments.byCode(night.department)?.label ?: "Département à préciser" })
-        },
-        supportingContent = {
-            val count = if (night.entryCount == 1) "1 son noté" else "${night.entryCount} sons notés"
-            Text(if (night.shared) "$count · partagée" else count)
-        },
-    )
+    val details = listOfNotNull(
+        weekdayName(night.date),
+        if (night.entryCount == 1) "1 set" else "${night.entryCount} sets",
+        "partagée".takeIf { night.shared },
+    ).joinToString(" · ")
+    val heard = night.sets.take(3).joinToString(", ") + if (night.sets.size > 3) "…" else ""
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().height(2.dp).background(Ink))
+        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            Text(dayNumber(night.date), Modifier.width(62.dp), style = textStyle(46.sp, 800).copy(letterSpacing = (-2).sp, lineHeight = 48.sp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                if (night.title.isNotEmpty()) Text(night.title, style = textStyle(16.sp, 700))
+                if (night.sets.isEmpty()) {
+                    Text("Rien de noté", style = textStyle(14.sp), color = Mute)
+                } else {
+                    Text(heard, style = textStyle(14.sp, if (night.title.isEmpty()) 600 else 400), color = if (night.title.isEmpty()) Ink else Mute, maxLines = 3)
+                }
+                Text(details, style = textStyle(12.sp), color = Mute)
+            }
+            ScoreText(night.average, modifier = Modifier.padding(start = 8.dp))
+        }
+    }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NightScreen(teknotes: Teknotes, nightId: String, navigator: Navigator) {
     val model = viewModel(key = nightId) { NightViewModel(teknotes, nightId) }
     val state by model.state.collectAsStateWithLifecycle()
+    val account by model.account.collectAsStateWithLifecycle()
     var pickDepartment by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var menu by remember { mutableStateOf(false) }
+    var changing by remember { mutableStateOf<Pair<NightEntry, DirectoryHit.Kind>?>(null) }
     val night = state.night ?: return
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(formatNightDate(night.date)) },
-                navigationIcon = {
-                    IconButton(onClick = navigator::back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
-                },
-                actions = { TextButton(onClick = { confirmDelete = true }) { Text("Supprimer") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
+    BackScaffold(
+        navigator,
+        actions = {
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Plus d'actions") }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text("Supprimer cette nuit") }, onClick = {
+                        menu = false
+                        confirmDelete = true
+                    })
+                }
+            }
         },
-    ) { padding ->
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
-            item {
-                TextButton(onClick = { pickDepartment = true }, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(Departments.byCode(night.department)?.label ?: "Choisir le département")
-                }
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = model::search,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    placeholder = { Text("Soundsystem ou artiste entendu") },
-                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                    trailingIcon = { DictationButton(onText = model::search) },
-                    singleLine = true,
-                )
-            }
-            if (state.query.isNotBlank()) {
-                items(state.results, key = { "hit-" + it.id }) { hit -> HitRow(hit, onClick = { model.add(hit) }) }
-                item {
-                    ListItem(
-                        modifier = Modifier.clickable {
-                            navigator.open(Route.Create(DirectoryHit.Kind.SOUNDSYSTEM, state.query.trim(), nightId))
-                            model.search("")
-                        },
-                        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-                        leadingContent = { Icon(Icons.Filled.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-                        headlineContent = { Text("Créer « ${state.query.trim()} »") },
-                        supportingContent = { Text("Nouveau soundsystem ou artiste dans l'annuaire") },
-                    )
-                }
-            }
+    ) {
+        Text(nightTitle(night.date), style = textStyle(30.sp, 800).copy(letterSpacing = (-0.5).sp))
+        var title by remember(night.id) { mutableStateOf(night.title) }
+        PlainField(title, "Donner un titre", 17, Modifier.padding(vertical = 10.dp)) {
+            title = it
+            model.edit(title = it)
+        }
 
-            item { SectionLabel("Entendu cette nuit") }
-            if (state.entries.isEmpty()) {
-                item {
-                    Text(
-                        "Cherche un nom au-dessus, puis touche-le pour l'ajouter.",
-                        Modifier.padding(20.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+        SectionHead("Sets") {
+            if (state.entries.isNotEmpty()) Text("${state.entries.size}", style = textStyle(15.sp), color = Mute)
+        }
+        Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            SearchLine("Artiste ou soundsystem", state.query, model::search, Modifier.weight(1f))
+            DictationButton(onText = model::search)
+        }
+        val query = state.query.trim()
+        if (query.isNotEmpty()) {
+            state.choices.forEach { choice -> ChoiceRow(choice) { model.add(choice) } }
+            RowLine("Créer l'artiste « $query »", color = Accent) {
+                navigator.open(Route.Create(DirectoryHit.Kind.ARTIST, query, nightId))
+                model.search("")
             }
-            items(state.entries, key = { it.id }) { entry -> EntryRow(entry, model) }
-
-            item {
-                SectionLabel("La nuit")
-                NightFields(night, model)
+            RowLine("Créer le soundsystem « $query »", color = Accent) {
+                navigator.open(Route.Create(DirectoryHit.Kind.SOUNDSYSTEM, query, nightId))
+                model.search("")
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        state.entries.forEach { entry ->
+            androidx.compose.runtime.key(entry.id) {
+                EntryRow(entry, model) { kind -> changing = entry to kind }
             }
         }
+        if (state.entries.isEmpty() && query.isEmpty()) {
+            Note("Tape un artiste ou un soundsystem, puis touche la bonne ligne.", Modifier.padding(top = 12.dp))
+        }
+
+        SectionHead("Souvenirs")
+        var memories by remember(night.id) { mutableStateOf(night.comment) }
+        Row(verticalAlignment = Alignment.Top) {
+            PlainField(memories, "Ce qu'il faut retenir de cette nuit", 16, Modifier.weight(1f).padding(top = 10.dp), singleLine = false) {
+                memories = it
+                model.edit(comment = it)
+            }
+            DictationButton(onText = { spoken ->
+                memories = listOf(memories, spoken).filter { it.isNotBlank() }.joinToString(" ")
+                model.edit(comment = memories)
+            })
+        }
+
+        SectionHead("Détails")
+        RowLine("Département", Departments.byCode(night.department)?.name ?: "Non précisé", chevron = true) { pickDepartment = true }
+        ShareRow(night, account, model, navigator)
     }
 
     if (pickDepartment) {
-        AlertDialog(
-            onDismissRequest = { pickDepartment = false },
-            confirmButton = { TextButton(onClick = { pickDepartment = false }) { Text("Fermer") } },
-            title = { Text("Département") },
-            text = {
-                LazyColumn(Modifier.height(400.dp)) {
-                    items(Departments.all, key = { it.code }) { department ->
-                        Text(
-                            department.label,
-                            Modifier.fillMaxWidth().clickable {
-                                model.edit(department = department.code)
-                                pickDepartment = false
-                            }.padding(vertical = 12.dp),
-                        )
-                    }
-                }
-            },
+        DepartmentPicker("Département", onPick = { model.edit(department = it) }, onClose = { pickDepartment = false })
+    }
+
+    changing?.let { (entry, kind) ->
+        val isSoundsystem = kind == DirectoryHit.Kind.SOUNDSYSTEM
+        SearchPicker(
+            title = if (isSoundsystem) "Sur quel soundsystem ?" else "Quel artiste ?",
+            prompt = if (isSoundsystem) "Chercher un soundsystem" else "Chercher un artiste",
+            items = { teknotes.directory.browse(kind, it) },
+            label = { it.name },
+            onPick = { model.change(entry, it) },
+            onClose = { changing = null },
         )
     }
 
@@ -210,89 +212,100 @@ fun NightScreen(teknotes: Teknotes, nightId: String, navigator: Navigator) {
     }
 }
 
+/** Text without a frame, for what lives quietly in the page. */
 @Composable
-private fun EntryRow(entry: NightEntry, model: NightViewModel) {
-    var comment by remember(entry.id) { mutableStateOf(entry.comment) }
-    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(entry.label, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            IconButton(onClick = { model.remove(entry) }) { Icon(Icons.Filled.Close, contentDescription = "Retirer ${entry.label}") }
-        }
-        // Big touch targets: rated at night, often with one hand.
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            (1..5).forEach { star ->
-                Text(
-                    if ((entry.rating ?: 0) >= star) "●" else "○",
-                    Modifier
-                        .clickable(onClickLabel = "Noter $star sur 5") { model.rate(entry, star) }
-                        .semantics { contentDescription = "Note $star sur 5" + if (entry.rating == star) ", choisie" else "" }
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 24.sp,
-                )
-            }
-        }
-        OutlinedTextField(
-            value = comment,
-            onValueChange = {
-                comment = it
-                model.comment(entry, it)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Un mot sur ce set") },
-            trailingIcon = {
-                DictationButton(onText = { spoken ->
-                    comment = listOf(comment, spoken).filter { it.isNotBlank() }.joinToString(" ")
-                    model.comment(entry, comment)
-                })
-            },
+private fun PlainField(value: String, prompt: String, size: Int, modifier: Modifier = Modifier, singleLine: Boolean = true, onChange: (String) -> Unit) {
+    Box(modifier) {
+        if (value.isEmpty()) Text(prompt, style = textStyle(size.sp), color = Mute)
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = prompt },
+            textStyle = textStyle(size.sp).copy(color = Ink),
+            cursorBrush = SolidColor(Accent),
+            singleLine = singleLine,
         )
-        HorizontalDivider(Modifier.padding(top = 12.dp), color = MaterialTheme.colorScheme.outline)
     }
 }
 
 @Composable
-private fun NightFields(night: Night, model: NightViewModel) {
-    var title by remember(night.id) { mutableStateOf(night.title) }
-    var comment by remember(night.id) { mutableStateOf(night.comment) }
-    Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = {
-                title = it
-                model.edit(title = it)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Titre (facultatif)") },
-            singleLine = true,
-        )
-        OutlinedTextField(
-            value = comment,
-            onValueChange = {
-                comment = it
-                model.edit(comment = it)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Souvenirs de la nuit") },
-            minLines = 3,
-            trailingIcon = {
-                DictationButton(onText = { spoken ->
-                    comment = listOf(comment, spoken).filter { it.isNotBlank() }.joinToString(" ")
-                    model.edit(comment = comment)
-                })
-            },
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Partager cette nuit", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "Visible des autres à partir du lendemain, avec le département seulement. Il faut un compte.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+private fun ChoiceRow(choice: SetChoice, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+            SetName(choice.artistName, choice.soundsystemName, size = 16, modifier = Modifier.weight(1f))
+            if (choice.artistName == null || choice.soundsystemName == null) {
+                Text(if (choice.artistName == null) "soundsystem seul" else "artiste seul", style = textStyle(13.sp), color = Mute)
             }
-            Switch(checked = night.shared, onCheckedChange = { model.edit(shared = it) })
         }
-        Spacer(Modifier.height(32.dp))
+        Hairline()
+    }
+}
+
+@Composable
+private fun EntryRow(entry: NightEntry, model: NightViewModel, onChange: (DirectoryHit.Kind) -> Unit) {
+    var comment by remember(entry.id) { mutableStateOf(entry.comment) }
+    var menu by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SetName(entry.artistName, entry.soundsystemName, entry.label, modifier = Modifier.weight(1f))
+            Box {
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "Actions sur ce set", tint = Mute) }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(text = { Text(if (entry.artistId == null) "Préciser l'artiste" else "Changer l'artiste") }, onClick = {
+                        menu = false
+                        onChange(DirectoryHit.Kind.ARTIST)
+                    })
+                    DropdownMenuItem(text = { Text(if (entry.soundsystemId == null) "Préciser le soundsystem" else "Changer le soundsystem") }, onClick = {
+                        menu = false
+                        onChange(DirectoryHit.Kind.SOUNDSYSTEM)
+                    })
+                    DropdownMenuItem(text = { Text("Retirer") }, onClick = {
+                        menu = false
+                        model.remove(entry)
+                    })
+                }
+            }
+        }
+        if (entry.soundsystemId == null || entry.artistId == null) {
+            TextAction(if (entry.soundsystemId == null) "Sur quel soundsystem ?" else "Quel artiste ?") {
+                onChange(if (entry.soundsystemId == null) DirectoryHit.Kind.SOUNDSYSTEM else DirectoryHit.Kind.ARTIST)
+            }
+        }
+        NumberRate(entry.rating ?: 0) { model.rate(entry, it) }
+        Row(verticalAlignment = Alignment.Top) {
+            PlainField(comment, "Un mot sur ce set", 15, Modifier.weight(1f).padding(top = 12.dp), singleLine = false) {
+                comment = it
+                model.comment(entry, it)
+            }
+            DictationButton(onText = { spoken ->
+                comment = listOf(comment, spoken).filter { it.isNotBlank() }.joinToString(" ")
+                model.comment(entry, comment)
+            })
+        }
+        Hairline(Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+private fun ShareRow(night: Night, account: AccountState, model: NightViewModel, navigator: Navigator) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Partager cette nuit", style = textStyle(16.sp, 500))
+            when (account) {
+                is AccountState.SignedIn -> Note("Visible à partir du lendemain, avec ton pseudo et le département seulement.")
+                AccountState.Unavailable -> Note("Le partage arrivera avec le serveur de l'annuaire.")
+                else -> {
+                    Note("Il faut un compte pour partager une nuit.")
+                    TextAction("Créer un compte ou se connecter") { navigator.open(Route.Auth(signUp = true)) }
+                }
+            }
+        }
+        if (account is AccountState.SignedIn) {
+            Switch(
+                checked = night.shared,
+                onCheckedChange = { model.edit(shared = it) },
+                colors = SwitchDefaults.colors(checkedTrackColor = MaterialTheme.colorScheme.primary),
+            )
+        }
     }
 }

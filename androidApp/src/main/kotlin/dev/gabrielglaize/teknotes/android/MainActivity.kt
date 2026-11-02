@@ -35,17 +35,16 @@ class MainActivity : ComponentActivity() {
                 Appearance.DARK -> true
                 Appearance.LIGHT -> false
             }
-            val darkScreen = dark || preferences.fieldMode
             // Status bar icons follow the chosen appearance, not the phone's setting.
-            LaunchedEffect(darkScreen) {
-                val style = if (darkScreen) {
+            LaunchedEffect(dark) {
+                val style = if (dark) {
                     SystemBarStyle.dark(Color.TRANSPARENT)
                 } else {
                     SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
                 }
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            TeknotesTheme(dark = darkScreen, fieldMode = preferences.fieldMode) {
+            TeknotesTheme(dark = dark) {
                 TeknotesRoot(teknotes)
             }
         }

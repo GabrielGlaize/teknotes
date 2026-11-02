@@ -6,6 +6,10 @@ import dev.gabrielglaize.teknotes.AccountState
 import dev.gabrielglaize.teknotes.Artist
 import dev.gabrielglaize.teknotes.BlockedUser
 import dev.gabrielglaize.teknotes.DirectoryHit
+import dev.gabrielglaize.teknotes.DirectoryLinks
+import dev.gabrielglaize.teknotes.MyDirectoryEntry
+import dev.gabrielglaize.teknotes.MyNote
+import dev.gabrielglaize.teknotes.SetChoice
 import dev.gabrielglaize.teknotes.Night
 import dev.gabrielglaize.teknotes.NightEntry
 import dev.gabrielglaize.teknotes.MergeProposal
@@ -45,18 +49,20 @@ data class NightState(
     val night: Night? = null,
     val entries: List<NightEntry> = emptyList(),
     val query: String = "",
-    val results: List<DirectoryHit> = emptyList(),
+    val choices: List<SetChoice> = emptyList(),
 )
 
 class NightViewModel(private val teknotes: Teknotes, private val nightId: String) : ViewModel() {
     private val query = MutableStateFlow("")
+
+    val account: StateFlow<AccountState> = teknotes.account.state
 
     val state: StateFlow<NightState> = combine(
         teknotes.notebook.nights().map { nights -> nights.firstOrNull { it.id == nightId } },
         teknotes.notebook.entries(nightId),
         query,
     ) { night, entries, query ->
-        NightState(night, entries, query, if (query.isBlank()) emptyList() else teknotes.directory.search(query).take(8))
+        NightState(night, entries, query, if (query.isBlank()) emptyList() else teknotes.directory.setChoices(query).take(10))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), NightState())
 
     fun search(text: String) {
@@ -64,10 +70,12 @@ class NightViewModel(private val teknotes: Teknotes, private val nightId: String
     }
 
     /** Second tap of "add in 2 taps". */
-    fun add(hit: DirectoryHit) {
-        teknotes.notebook.addEntry(nightId, hit)
+    fun add(choice: SetChoice) {
+        teknotes.notebook.addSet(nightId, choice)
         query.value = ""
     }
+
+    fun change(entry: NightEntry, hit: DirectoryHit) = teknotes.notebook.changeSet(entry.id, hit)
 
     fun rate(entry: NightEntry, rating: Int) =
         teknotes.notebook.updateEntry(entry.id, if (entry.rating == rating) null else rating, entry.comment)
@@ -84,38 +92,56 @@ class NightViewModel(private val teknotes: Teknotes, private val nightId: String
     fun delete() = teknotes.notebook.deleteNight(nightId)
 }
 
-enum class DirectoryTab(val label: String) { SOUNDSYSTEMS("Soundsystems"), ARTISTS("Artistes") }
+enum class DirectoryScope(val label: String) { MINE("Mon classement"), PUBLIC("Public") }
+
+enum class DirectoryFilter(val label: String, val kind: DirectoryHit.Kind?) {
+    ALL("Tout", null),
+    ARTISTS("Artistes", DirectoryHit.Kind.ARTIST),
+    SOUNDSYSTEMS("Soundsystems", DirectoryHit.Kind.SOUNDSYSTEM),
+}
 
 data class DirectoryState(
-    val tab: DirectoryTab = DirectoryTab.SOUNDSYSTEMS,
+    val scope: DirectoryScope = DirectoryScope.MINE,
+    val filter: DirectoryFilter = DirectoryFilter.ALL,
     val query: String = "",
     val style: Style? = null,
     val soundsystems: List<Soundsystem> = emptyList(),
     val artists: List<Artist> = emptyList(),
+    val hasNotes: Boolean = false,
+    val ranking: List<MyDirectoryEntry> = emptyList(),
+    val links: DirectoryLinks = DirectoryLinks(emptyMap(), emptyMap()),
     val results: List<DirectoryHit> = emptyList(),
 )
 
 class DirectoryViewModel(private val teknotes: Teknotes) : ViewModel() {
     private val filters = MutableStateFlow(DirectoryState())
 
+    val directory = teknotes.directory
+
     val state: StateFlow<DirectoryState> = combine(
         teknotes.directory.soundsystems(),
         teknotes.directory.artists(),
+        teknotes.notebook.myDirectory(),
         filters,
-    ) { soundsystems, artists, filters ->
-        val kind = if (filters.tab == DirectoryTab.SOUNDSYSTEMS) DirectoryHit.Kind.SOUNDSYSTEM else DirectoryHit.Kind.ARTIST
+    ) { soundsystems, artists, mine, filters ->
+        val kind = filters.filter.kind
         filters.copy(
-            soundsystems = soundsystems.filter { filters.style == null || filters.style in it.styles },
-            artists = artists.filter { filters.style == null || filters.style in it.styles },
-            results = if (filters.query.isBlank()) emptyList() else teknotes.directory.search(filters.query).filter { it.kind == kind },
+            soundsystems = if (kind == DirectoryHit.Kind.ARTIST) emptyList() else soundsystems.filter { filters.style == null || filters.style in it.styles },
+            artists = if (kind == DirectoryHit.Kind.SOUNDSYSTEM) emptyList() else artists.filter { filters.style == null || filters.style in it.styles },
+            hasNotes = mine.isNotEmpty(),
+            ranking = teknotes.notebook.ranked(mine, kind, filters.query),
+            links = teknotes.directory.links(),
+            results = if (filters.query.isBlank()) emptyList() else teknotes.directory.search(filters.query).filter { kind == null || it.kind == kind },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DirectoryState())
 
     fun search(text: String) = filters.update { it.copy(query = text) }
 
-    fun show(tab: DirectoryTab) = filters.update { it.copy(tab = tab) }
+    fun show(scope: DirectoryScope) = filters.update { it.copy(scope = scope) }
 
-    fun filter(style: Style?) = filters.update { it.copy(style = if (it.style == style) null else style) }
+    fun show(filter: DirectoryFilter) = filters.update { it.copy(filter = filter) }
+
+    fun filter(style: Style?) = filters.update { it.copy(style = style) }
 }
 
 /** Form to add or edit a soundsystem or an artist, with lookalikes shown before creating a duplicate. */
@@ -141,8 +167,7 @@ class CreateViewModel(
     )
     val state: StateFlow<CreateState> = mutableState.asStateFlow()
 
-    val soundsystems: StateFlow<List<Soundsystem>> = teknotes.directory.soundsystems()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val directory = teknotes.directory
 
     private fun existing(kind: DirectoryHit.Kind, id: String): CreateState = if (kind == DirectoryHit.Kind.SOUNDSYSTEM) {
         val entry = teknotes.directory.soundsystem(id)
@@ -166,7 +191,7 @@ class CreateViewModel(
         val form = state.value
         val aliases = form.aliases.split(",")
         val links = form.links.split("\n")
-        val styles = Style.entries.filter { it in form.styles }
+        val styles = form.styles.sortedBy { it.label }
         if (editedId != null) {
             if (form.kind == DirectoryHit.Kind.SOUNDSYSTEM) {
                 teknotes.directory.updateSoundsystem(editedId, form.name, aliases, form.department, styles, links)
@@ -208,6 +233,14 @@ class FicheViewModel(private val teknotes: Teknotes, val kind: DirectoryHit.Kind
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), read())
 
     val account: StateFlow<AccountState> = teknotes.account.state
+
+    val notes: StateFlow<List<MyNote>> = teknotes.notebook.notesOn(kind, id)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** Its place in the user's ranking, from 1, or null. */
+    val rank: StateFlow<Int?> = teknotes.notebook.myDirectory()
+        .map { items -> teknotes.notebook.ranked(items, null, "").indexOfFirst { it.id == id }.takeIf { it >= 0 }?.plus(1) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val mutableCommunity = MutableStateFlow(FicheCommunity())
     val community: StateFlow<FicheCommunity> = mutableCommunity.asStateFlow()
@@ -380,6 +413,8 @@ class AccountViewModel(private val teknotes: Teknotes) : ViewModel() {
     private val mutableForm = MutableStateFlow(AccountForm())
     val form: StateFlow<AccountForm> = mutableForm.asStateFlow()
 
+    fun clearMessage() = mutableForm.update { it.copy(message = null) }
+
     fun edit(change: (AccountForm) -> AccountForm) = mutableForm.update { change(it).copy(message = null) }
 
     private fun run(after: (AccountForm) -> AccountForm = { it }, action: suspend () -> Unit) {
@@ -411,8 +446,6 @@ class AccountViewModel(private val teknotes: Teknotes) : ViewModel() {
     fun deleteAccount() = run { teknotes.account.deleteAccount() }
 
     fun setAppearance(appearance: dev.gabrielglaize.teknotes.Appearance) = teknotes.settings.setAppearance(appearance)
-
-    fun setFieldMode(enabled: Boolean) = teknotes.settings.setFieldMode(enabled)
 
     fun exportJson() = teknotes.notebook.exportJson()
 

@@ -21,6 +21,9 @@ struct CreateView: View {
     @State private var styles: Set<Style> = []
     @State private var links = ""
     @State private var memberOf: Set<String> = []
+    @State private var choosingStyles = false
+    @State private var choosingSoundsystem = false
+    @State private var choosingDepartment = false
     @Environment(\.dismiss) private var dismiss
 
     init(teknotes: Teknotes, kind: DirectoryHit.Kind, name: String, mode: Mode, onDone: @escaping (DirectoryHit) -> Void) {
@@ -53,89 +56,92 @@ struct CreateView: View {
     private var isSoundsystem: Bool { kind == .soundsystem }
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
 
+    private var soundsystemNames: [(id: String, name: String)] {
+        memberOf.compactMap { id in teknotes.directory.soundsystem(id: id).map { (id, $0.name) } }.sorted { $0.name < $1.name }
+    }
+
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    if editedId == nil {
-                        Picker("Type", selection: Binding(get: { isSoundsystem }, set: { kind = $0 ? .soundsystem : .artist })) {
-                            Text("Soundsystem").tag(true)
-                            Text("Artiste").tag(false)
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    TextField("Nom", text: $name).autocorrectionDisabled()
+            Page {
+                if editedId == nil {
+                    WordTabs(items: [DirectoryHit.Kind.artist, DirectoryHit.Kind.soundsystem], selection: $kind, label: { $0 == .soundsystem ? "Soundsystem" : "Artiste" }, size: 16)
+                        .padding(.top, 4)
                 }
+                LineField(label: "Nom", text: $name, capitalization: .words)
 
                 // While editing, the entry itself isn't a duplicate to warn about.
                 let lookalikes = editedId == nil ? teknotes.directory.lookalikes(name: name) : []
                 if !lookalikes.isEmpty {
-                    Section {
-                        ForEach(lookalikes, id: \.id) { hit in
-                            Button { finish(hit) } label: { HitRow(hit: hit) }
-                        }
-                    } header: {
-                        FlyerLabel(text: "Ça existe peut-être déjà")
+                    Text("Ça existe peut-être déjà").font(Theme.text(13, weight: 600)).foregroundStyle(Theme.accent).padding(.top, 8)
+                    ForEach(lookalikes, id: \.id) { hit in
+                        Button { finish(hit) } label: { HitRow(hit: hit) }.buttonStyle(.plain)
                     }
-                }
-
-                Section {
-                    TextField("Aussi appelé (séparés par des virgules)", text: $aliases).autocorrectionDisabled()
-                    if isSoundsystem {
-                        Picker("Origine", selection: $department) {
-                            Text("Inconnue").tag(String?.none)
-                            ForEach(Departments.shared.all, id: \.code) { Text($0.label).tag(String?.some($0.code)) }
-                        }
-                    }
-                    TextField("Liens (SoundCloud, Instagram… un par ligne)", text: $links, axis: .vertical)
-                        .lineLimit(2...5)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-
-                Section {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(Style.entries, id: \.id) { style in
-                                StyleChip(style: style, selected: styles.contains(style)) {
-                                    if styles.contains(style) { styles.remove(style) } else { styles.insert(style) }
-                                }
-                            }
-                        }
-                    }
-                } header: {
-                    FlyerLabel(text: "Styles")
                 }
 
                 if !isSoundsystem {
-                    Section {
-                        ForEach(SoundsystemsList(teknotes: teknotes).items, id: \.id) { soundsystem in
-                            Toggle(soundsystem.name, isOn: Binding(
-                                get: { memberOf.contains(soundsystem.id) },
-                                set: { if $0 { memberOf.insert(soundsystem.id) } else { memberOf.remove(soundsystem.id) } }
-                            ))
+                    picked(label: "Joue sur") {
+                        ForEach(soundsystemNames, id: \.id) { soundsystem in
+                            Button { memberOf.remove(soundsystem.id) } label: { Tag(text: soundsystem.name, systemImage: "xmark") }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Retire ce soundsystem")
                         }
-                    } header: {
-                        FlyerLabel(text: "Joue avec")
+                        Button { choosingSoundsystem = true } label: { Tag(text: "Ajouter", systemImage: "plus") }
+                            .buttonStyle(.plain)
                     }
                 }
 
-                Section {
-                    Button(submitLabel, action: save)
-                        .disabled(trimmedName.isEmpty)
-                } footer: {
-                    if editedId == nil {
-                        Text("Ta fiche rejoint l'annuaire partagé une fois connecté à ton compte.")
+                picked(label: "Styles") {
+                    ForEach(styles.sorted { $0.label < $1.label }, id: \.id) { style in
+                        Button { styles.remove(style) } label: { Tag(text: style.label, systemImage: "xmark") }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Retire ce style")
                     }
+                    Button { choosingStyles = true } label: { Tag(text: "Ajouter", systemImage: "plus") }
+                        .buttonStyle(.plain)
+                }
+
+                LineField(label: "Aussi appelé (séparés par des virgules)", text: $aliases, capitalization: .words)
+                LineField(label: "Liens (SoundCloud, Instagram… un par ligne)", text: $links, multiline: true)
+
+                if isSoundsystem {
+                    RowButton(
+                        title: "Origine",
+                        detail: Departments.shared.byCode(code: department)?.name ?? "Non précisée",
+                        chevron: true
+                    ) { choosingDepartment = true }
+                }
+
+                ActionButton(title: submitLabel, enabled: !trimmedName.isEmpty, action: save).padding(.top, 24)
+                if editedId == nil {
+                    Note(text: "Ta fiche rejoint l'annuaire public une fois connecté à ton compte.").padding(.top, 10)
                 }
             }
-            .flyerBackground()
-            .navigationTitle(editedId != nil ? "Modifier la fiche" : (isSoundsystem ? "Nouveau soundsystem" : "Nouvel artiste"))
+            .navigationTitle(editedId != nil ? "Modifier la fiche" : "Nouvelle fiche")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
             }
+            .sheet(isPresented: $choosingStyles) { StylePicker(directory: teknotes.directory, selected: $styles) }
+            .sheet(isPresented: $choosingDepartment) { DepartmentPicker(title: "Origine") { department = $0 } }
+            .sheet(isPresented: $choosingSoundsystem) {
+                SearchPicker<DirectoryHit>(
+                    title: "Joue sur",
+                    prompt: "Chercher un soundsystem",
+                    items: { teknotes.directory.browse(kind: .soundsystem, query: $0) },
+                    id: { $0.id },
+                    label: { $0.name },
+                    onPick: { memberOf.insert($0.id) }
+                )
+            }
         }
+    }
+
+    private func picked<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label).font(Theme.text(13, weight: 600)).foregroundStyle(Theme.mute)
+            TagFlow { content() }
+        }
+        .padding(.vertical, 12)
     }
 
     private var submitLabel: String {
@@ -149,7 +155,7 @@ struct CreateView: View {
     private func save() {
         let aliasList = aliases.components(separatedBy: ",")
         let linkList = links.components(separatedBy: "\n")
-        let chosenStyles = Style.entries.filter { styles.contains($0) }
+        let chosenStyles = styles.sorted { $0.label < $1.label }
         let hit: DirectoryHit
         if let id = editedId {
             if isSoundsystem {
@@ -171,14 +177,5 @@ struct CreateView: View {
     private func finish(_ hit: DirectoryHit) {
         onDone(hit)
         dismiss()
-    }
-}
-
-/// Soundsystems to pick from, read once when the section shows.
-private struct SoundsystemsList {
-    let items: [Soundsystem]
-
-    init(teknotes: Teknotes) {
-        items = teknotes.directory.allSoundsystemsNow()
     }
 }

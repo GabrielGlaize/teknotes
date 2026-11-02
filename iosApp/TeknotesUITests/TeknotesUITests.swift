@@ -8,6 +8,9 @@ final class TeknotesUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
         app = XCUIApplication()
+        // The first-launch test starts from a fresh install, without skipping anything.
+        guard !name.contains("testTheTutorial") else { return }
+        app.launchArguments = ["-skipIntro"]
         app.launch()
     }
 
@@ -25,17 +28,70 @@ final class TeknotesUITests: XCTestCase {
 
     func testANightIsNotedInTwoTapsEvenWithATypo() {
         app.buttons["J'y suis"].tap()
-        type("kaisson", in: app.textFields["Soundsystem ou artiste entendu"])
-        let hit = app.staticTexts["Caisson Noir"]
-        XCTAssertTrue(hit.waitForExistence(timeout: 5), "la recherche tolère la faute")
+        type("kaisson", in: app.textFields["Artiste ou soundsystem"])
+        let hit = app.buttons["Rouille (Caisson Noir)"]
+        XCTAssertTrue(hit.waitForExistence(timeout: 5), "la recherche tolère la faute et propose le set")
         shot("ios-search")
         hit.tap()
-        XCTAssertTrue(app.staticTexts["Caisson Noir"].waitForExistence(timeout: 5), "l'entrée s'ajoute à la nuit")
+        XCTAssertTrue(app.staticTexts["Rouille (Caisson Noir)"].waitForExistence(timeout: 5), "le set s'ajoute à la nuit")
         shot("ios-night")
     }
 
+    func testTheKeyboardClosesOnATapOutside() {
+        app.buttons["J'y suis"].tap()
+        let field = app.textFields["Artiste ou soundsystem"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        app.staticTexts["Souvenirs"].tap()
+        let gone = expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: app.keyboards.firstMatch)
+        wait(for: [gone], timeout: 5)
+    }
+
+    func testSharingANightAsksForAnAccount() {
+        app.buttons["J'y suis"].tap()
+        let share = app.staticTexts["Il faut un compte pour partager une nuit."]
+        for _ in 0..<3 where !share.exists { app.swipeUp() }
+        if app.switches.matching(NSPredicate(format: "label BEGINSWITH 'Partager'")).firstMatch.exists {
+            return // this simulator is signed in
+        }
+        XCTAssertTrue(share.waitForExistence(timeout: 5), "pas d'interrupteur sans compte")
+        shot("ios-share")
+    }
+
+    func testTheTutorialThenTheCodeProtectTheApp() {
+        let fresh = XCUIApplication()
+        fresh.launch()
+        // A simulator that already went through it opens directly on the notebook.
+        guard fresh.buttons["Continuer"].waitForExistence(timeout: 5) else { return }
+        shot("ios-tuto")
+        fresh.buttons["Continuer"].tap()
+        fresh.buttons["Continuer"].tap()
+        fresh.buttons["Choisir mon code"].tap()
+        for _ in 0..<2 {
+            XCTAssertTrue(fresh.buttons["4"].waitForExistence(timeout: 5))
+            for digit in ["4", "8", "2", "1"] { fresh.buttons[digit].tap() }
+            sleep(1)
+        }
+        XCTAssertTrue(fresh.staticTexts["Tek'Notes !"].waitForExistence(timeout: 5))
+        fresh.terminate()
+        fresh.launch()
+        XCTAssertTrue(fresh.staticTexts["Entre ton code"].waitForExistence(timeout: 5), "le code est demandé à l'ouverture")
+        shot("ios-lock")
+        for digit in ["4", "8", "2", "1"] { fresh.buttons[digit].tap() }
+        XCTAssertTrue(fresh.buttons["J'y suis"].waitForExistence(timeout: 5))
+        shot("ios-carnet-vide")
+    }
+
+    func testSwipingMovesFromOneTabToTheNext() {
+        XCTAssertTrue(app.staticTexts["Tek'Notes !"].waitForExistence(timeout: 5))
+        app.swipeLeft()
+        XCTAssertTrue(app.staticTexts["Annuaire"].waitForExistence(timeout: 5), "l'écran suit le doigt")
+        XCTAssertTrue(app.buttons["Annuaire"].isSelected, "la barre suit aussi")
+    }
+
     func testADuplicateIsSuggestedBeforeCreating() {
-        app.tabBars.buttons["Annuaire"].tap()
+        app.buttons["Annuaire"].tap()
         app.buttons["Ajouter un soundsystem"].tap()
         type("Teknokrate", in: app.textFields["Nom"])
         XCTAssertTrue(app.staticTexts["Teknokrates"].waitForExistence(timeout: 5), "la fiche proche est proposée")
@@ -44,14 +100,16 @@ final class TeknotesUITests: XCTestCase {
 
     /// Signs up from the profile, unless this simulator is already signed in.
     private func signUpIfNeeded() {
-        app.tabBars.buttons["Profil"].tap()
-        let email = app.textFields["Email"]
-        guard email.waitForExistence(timeout: 5) else { return }
-        let id = Int.random(in: 1...1_000_000_000)
-        type("ios\(id)@teknotes.test", in: email)
-        type("mot-de-passe-solide", in: app.secureTextFields["Mot de passe"])
+        app.buttons["Profil"].tap()
+        let create = app.buttons["Créer un compte"]
+        guard create.waitForExistence(timeout: 5) else { return }
         shot("ios-profile")
-        app.buttons["Créer un compte"].tap()
+        create.tap()
+        let id = Int.random(in: 1...1_000_000_000)
+        type("ios\(id)@teknotes.test", in: app.textFields["Email"])
+        type("mot-de-passe-solide", in: app.secureTextFields["Mot de passe (6 caractères minimum)"])
+        shot("ios-signup")
+        app.buttons["Créer mon compte"].tap()
 
         type("iPhone\(id)\n", in: app.textFields["Pseudo"])
         let valider = app.buttons["Valider"]
@@ -72,15 +130,18 @@ final class TeknotesUITests: XCTestCase {
     func testAnEntryIsEditedAndItsHistoryShown() {
         signUpIfNeeded()
         XCTAssertTrue(app.buttons["Personnes bloquées"].waitForExistence(timeout: 20), "connecté")
-        app.tabBars.buttons["Annuaire"].tap()
-        app.staticTexts["Basse Marée"].tap()
+        app.buttons["Annuaire"].tap()
+        app.buttons["Public"].tap()
+        let basse = app.staticTexts["Basse Marée"]
+        XCTAssertTrue(basse.waitForExistence(timeout: 5))
+        basse.tap()
         shot("ios-fiche")
 
         let edit = app.buttons["Modifier la fiche"]
         XCTAssertTrue(edit.waitForExistence(timeout: 5), "une fiche se modifie une fois connecté")
         edit.tap()
         let alias = "Alias \(Int.random(in: 1...1_000_000))"
-        let aliases = app.textFields.matching(NSPredicate(format: "placeholderValue BEGINSWITH 'Aussi appelé'")).firstMatch
+        let aliases = app.textFields["Aussi appelé (séparés par des virgules)"]
         XCTAssertTrue(aliases.waitForExistence(timeout: 5))
         aliases.tap()
         aliases.typeText(", \(alias)")
@@ -101,7 +162,7 @@ final class TeknotesUITests: XCTestCase {
     }
 
     func testTheTermsAndContactAreReachable() {
-        app.tabBars.buttons["Profil"].tap()
+        app.buttons["Profil"].tap()
         let terms = app.buttons["Conditions d'utilisation"]
         for _ in 0..<5 where !terms.isHittable { app.swipeUp() }
         terms.tap()
@@ -115,20 +176,44 @@ final class TeknotesUITests: XCTestCase {
         guard ProcessInfo.processInfo.environment["TEKNOTES_DEMO"] == "1" else {
             throw XCTSkip("Demande le serveur de démo : scripts/iphone.sh")
         }
-        app.tabBars.buttons["Profil"].tap()
+        app.buttons["Profil"].tap()
+        shot("demo-profil-sans-compte")
+        app.buttons["Se connecter"].tap()
         type("demo@teknotes.test", in: app.textFields["Email"])
         type("teknotes-demo", in: app.secureTextFields["Mot de passe"])
-        app.buttons["Se connecter"].tap()
-        XCTAssertTrue(app.staticTexts["GABRIEL"].waitForExistence(timeout: 15) || app.staticTexts["Gabriel"].exists, "connecté")
+        shot("demo-connexion")
+        app.buttons["Me connecter"].tap()
+        XCTAssertTrue(app.staticTexts["Gabriel"].waitForExistence(timeout: 15), "connecté")
+        shot("demo-profil")
         let synced = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Synchronisé le'")).firstMatch
         XCTAssertTrue(synced.waitForExistence(timeout: 20))
 
-        app.tabBars.buttons["Carnet"].tap()
+        app.buttons["Carnet"].tap()
         XCTAssertTrue(app.staticTexts["Teknival du Nord"].waitForExistence(timeout: 10), "le carnet de démo est arrivé")
         XCTAssertTrue(app.staticTexts["Week-end au bord de l'eau"].exists)
         shot("demo-carnet")
+        app.staticTexts["Teknival du Nord"].tap()
+        XCTAssertTrue(app.staticTexts["Pyl (Caisson Noir)"].waitForExistence(timeout: 5), "un set dit qui joue sur quel soundsystem")
+        shot("demo-nuit")
+        app.navigationBars.buttons.firstMatch.tap()
 
-        app.tabBars.buttons["Annuaire"].tap()
+        app.buttons["Annuaire"].tap()
+        XCTAssertTrue(app.staticTexts["Caisson Noir"].waitForExistence(timeout: 5), "mon annuaire reprend ce que j'ai noté")
+        shot("demo-annuaire-mien")
+        let rouille = app.staticTexts["Rouille"]
+        XCTAssertTrue(rouille.waitForExistence(timeout: 5))
+        rouille.tap()
+        let note = app.staticTexts["Set hardtek très propre"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5), "la fiche d'un artiste reprend toutes mes notes sur lui")
+        shot("demo-fiche-artiste")
+        app.navigationBars.buttons.firstMatch.tap()
+        app.buttons["Public"].tap()
+        shot("demo-annuaire-public")
+        app.buttons["Style ▾"].tap()
+        XCTAssertTrue(app.staticTexts["Hardtek"].waitForExistence(timeout: 5))
+        shot("demo-style-filtre")
+        app.buttons["OK"].tap()
+
         app.staticTexts["Caisson Noir"].firstMatch.tap()
         let sighting = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Moktar'")).firstMatch
         XCTAssertTrue(sighting.waitForExistence(timeout: 10), "nuit partagée par un autre")

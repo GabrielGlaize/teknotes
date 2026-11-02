@@ -213,9 +213,9 @@ class Sync internal constructor(
                 if (queries.isPending(Entity.NIGHT_ENTRY.key, entry.id).executeAsOne() > 0) continue
                 if (queries.isPending(Entity.NIGHT.key, entry.nightId).executeAsOne() > 0) continue
                 val existing = queries.entryById(entry.id).executeAsOneOrNull()
-                val label = entry.soundsystemId?.let { directory.soundsystem(it)?.name }
-                    ?: entry.artistId?.let { directory.artist(it)?.name }
-                    ?: existing?.label.orEmpty()
+                val soundsystem = entry.soundsystemId?.let { directory.soundsystem(it)?.name }
+                val artist = entry.artistId?.let { directory.artist(it)?.name }
+                val label = if (soundsystem != null || artist != null) setLabel(artist, soundsystem) else existing?.label.orEmpty()
                 queries.upsertEntry(
                     entry.id, entry.nightId, entry.soundsystemId, entry.artistId, label,
                     entry.rating?.toLong(), entry.comment, existing?.created_at ?: time,

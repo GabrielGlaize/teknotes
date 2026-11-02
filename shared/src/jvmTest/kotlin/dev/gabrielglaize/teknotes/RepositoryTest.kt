@@ -96,6 +96,152 @@ class RepositoryTest {
     }
 
     @Test
+    fun aSetIsAnArtistOnASoundsystem() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        val night = app.notebook.checkIn(null)
+
+        val choices = app.directory.setChoices("rouille").map { it.label }
+        assertEquals(listOf("Rouille (Caisson Noir)", "Rouille"), choices)
+        val onSoundsystem = app.directory.setChoices("caisson noir").map { it.label }
+        assertEquals(listOf("Caisson Noir", "Pyl (Caisson Noir)", "Rouille (Caisson Noir)"), onSoundsystem)
+
+        app.notebook.addSet(night.id, app.directory.setChoices("rouille").first())
+        assertEquals("Rouille (Caisson Noir)", app.notebook.entries(night.id).first().single().label)
+        assertEquals(listOf("Rouille (Caisson Noir)"), app.notebook.night(night.id)?.sets)
+    }
+
+    @Test
+    fun aGuestIsAttachedToAnotherSoundsystemWithoutTouchingTheDirectory() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        val night = app.notebook.checkIn(null)
+        val id = app.notebook.addEntry(night.id, app.directory.search("Rouille").first())
+        app.notebook.updateEntry(id, 4, "Gros set")
+
+        app.notebook.changeSet(id, app.directory.search("Mur du Nord").first())
+
+        val entry = app.notebook.entries(night.id).first().single()
+        assertEquals("Rouille (Mur du Nord)", entry.label)
+        assertEquals(4, entry.rating)
+        assertEquals(listOf("Caisson Noir"), app.directory.soundsystemsOf(entry.artistId!!).map { it.name })
+    }
+
+    @Test
+    fun setsOfASameSoundsystemStayTogether() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        val night = app.notebook.checkIn(null)
+        listOf("Rouille", "Lunatek", "Pyl").forEach { name ->
+            app.notebook.addSet(night.id, app.directory.setChoices(name).first())
+        }
+        assertEquals(
+            listOf("Rouille (Caisson Noir)", "Pyl (Caisson Noir)", "Lunatek (Les Ondes Sauvages)"),
+            app.notebook.entries(night.id).first().map { it.label },
+        )
+    }
+
+    @Test
+    fun thePersonalDirectoryGathersEverythingNotedOnAnEntry() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        val one = app.notebook.createNight("2026-09-12", null, "Bord de l'eau")
+        val two = app.notebook.createNight("2026-10-03", null, "")
+        val rouille = app.directory.setChoices("rouille").first()
+        app.notebook.updateEntry(app.notebook.addSet(one.id, rouille), 5, "Énorme")
+        app.notebook.updateEntry(app.notebook.addSet(two.id, rouille), 2, "Moyen")
+        app.notebook.addSet(two.id, app.directory.setChoices("lunatek").last())
+
+        val mine = app.notebook.myDirectory().first()
+        val artist = mine.first { it.name == "Rouille" }
+        assertEquals(2, artist.nights)
+        assertEquals(3.5, artist.average)
+        assertEquals("2026-10-03", artist.lastDate)
+        assertEquals(setOf("Caisson Noir"), mine.filter { it.kind == DirectoryHit.Kind.SOUNDSYSTEM }.map { it.name }.toSet())
+
+        val notes = app.notebook.notesOn(DirectoryHit.Kind.ARTIST, rouille.artistId!!).first()
+        assertEquals(listOf("Moyen", "Énorme"), notes.map { it.entry.comment })
+        assertEquals("Bord de l'eau", notes.last().nightTitle)
+
+        val ranking = app.notebook.ranked(mine, null, "")
+        assertEquals(setOf("Rouille", "Caisson Noir"), ranking.take(2).map { it.name }.toSet())
+        assertEquals("Lunatek", ranking.last().name, "not rated: last")
+        assertEquals(listOf("Rouille", "Lunatek"), app.notebook.ranked(mine, DirectoryHit.Kind.ARTIST, "").map { it.name })
+        assertEquals(emptyList(), app.notebook.ranked(mine, null, "zzzz"))
+    }
+
+    @Test
+    fun aNightKnowsItsAverage() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        val night = app.notebook.checkIn(null)
+        assertEquals(null, app.notebook.night(night.id)?.average)
+        app.notebook.updateEntry(app.notebook.addSet(night.id, app.directory.setChoices("rouille").first()), 5, "")
+        app.notebook.updateEntry(app.notebook.addSet(night.id, app.directory.setChoices("pyl").first()), 2, "")
+        assertEquals(3.5, app.notebook.night(night.id)?.average)
+    }
+
+    @Test
+    fun thePasscodeOpensTheAppAndTooManyTriesMakeYouWait() = runTest {
+        var now = kotlin.time.Instant.fromEpochMilliseconds(1_000_000)
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        TeknotesDatabase.Schema.create(driver)
+        val app = Teknotes(driver, null, { now })
+        assertFalse(app.settings.hasPasscode)
+        assertFalse(app.settings.tutorialDone)
+        assertFailsWith<IllegalArgumentException> { app.settings.setPasscode("12a") }
+
+        app.settings.setPasscode("4821")
+        assertTrue(app.settings.hasPasscode)
+        assertTrue(app.settings.checkPasscode("4821"))
+        repeat(5) { assertFalse(app.settings.checkPasscode("0000")) }
+        assertEquals(30, app.settings.passcodeWaitSeconds())
+        assertFalse(app.settings.checkPasscode("4821"), "even the right code waits")
+
+        now = kotlin.time.Instant.fromEpochMilliseconds(1_031_000)
+        assertEquals(0, app.settings.passcodeWaitSeconds())
+        assertTrue(app.settings.checkPasscode("4821"))
+
+        app.settings.removePasscode()
+        assertFalse(app.settings.hasPasscode)
+    }
+
+    @Test
+    fun theHashIsARealSha256() {
+        assertEquals(
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            Sha256.hex(Sha256.hash("abc".encodeToByteArray())),
+        )
+    }
+
+    @Test
+    fun sharingANightTakesAnAccount() = runTest {
+        val app = teknotes()
+        val night = app.notebook.checkIn(null)
+        app.notebook.updateNight(night.id, null, "Titre", "", shared = true)
+        val after = app.notebook.night(night.id)!!
+        assertFalse(after.shared)
+        assertEquals("Titre", after.title)
+    }
+
+    @Test
+    fun anyoneCanAddAStyleWithoutCreatingANearDuplicate() = runTest {
+        val app = teknotes()
+        app.directory.seedDemoIfEmpty()
+        assertEquals(Style.HARDTEK, app.directory.styleNamed("  HARDTEK "))
+        assertEquals(Style.DRUM_AND_BASS, Style.fromLabel("DnB"))
+        assertEquals(null, app.directory.styleNamed("  "))
+        val hardGroove = app.directory.styleNamed("hard groove")!!
+        assertEquals("Hard groove", hardGroove.label)
+
+        val entry = app.directory.createSoundsystem("Son Neuf", emptyList(), null, listOf(hardGroove), emptyList())
+
+        assertEquals(listOf(hardGroove), app.directory.soundsystem(entry.id)?.styles)
+        assertEquals(hardGroove, app.directory.styleNamed("HARD GROOVE"))
+        assertEquals(Style.HARDTEK, app.directory.styleChoices("hardteck", usedOnly = false).first(), "a typo finds the style")
+    }
+
+    @Test
     fun exportsContainEveryNightAndEntry() = runTest {
         val app = teknotes()
         app.directory.seedDemoIfEmpty()
@@ -106,7 +252,7 @@ class RepositoryTest {
         val json = app.notebook.exportJson()
         assertTrue("\"Lunatek\"" in json && "29 · Finistère" in json && "2026-09-12" in json)
         val csv = app.notebook.exportCsv().lines()
-        assertEquals("date;departement;titre;nom;type;note;commentaire", csv.first())
+        assertEquals("date;departement;titre;artiste;soundsystem;note;commentaire", csv.first())
         assertEquals(3, csv.size)
     }
 
@@ -168,12 +314,11 @@ class RepositoryTest {
     }
 
     @Test
-    fun preferencesStartWithTheSystemAppearance() = runTest {
+    fun theAppearanceStartsLight() = runTest {
         val app = teknotes()
-        assertEquals(Preferences(Appearance.SYSTEM, fieldMode = false), app.settings.preferences().first())
+        assertEquals(Preferences(Appearance.LIGHT), app.settings.preferences().first())
         app.settings.setAppearance(Appearance.DARK)
-        app.settings.setFieldMode(true)
-        assertEquals(Preferences(Appearance.DARK, fieldMode = true), app.settings.current())
+        assertEquals(Preferences(Appearance.DARK), app.settings.current())
         assertFalse(app.account.canContribute)
         assertEquals(AccountState.Unavailable, app.account.state.value)
     }
@@ -228,6 +373,21 @@ class RepositoryTest {
             app.cash.sqldelight.db.QueryResult.Value(cursor.getLong(0))
         }, 0).value
         assertEquals(0L, synced)
+    }
+
+    @Test
+    fun aNightSharedWithoutAnAccountGoesBackToPrivateOnUpdate() = runTest {
+        val driver = JdbcSqliteDriver(JdbcSqliteDriver.IN_MEMORY)
+        TeknotesDatabase.Schema.create(driver)
+        driver.execute(null, "INSERT INTO night (id, date, shared, created_at, updated_at, synced) VALUES ('a', '2026-10-01', 1, 0, 0, 0), ('b', '2026-10-02', 1, 0, 0, 1)", 0)
+
+        TeknotesDatabase.Schema.migrate(driver, 2, TeknotesDatabase.Schema.version)
+
+        val shared = driver.executeQuery(null, "SELECT id FROM night WHERE shared = 1", { cursor ->
+            cursor.next()
+            app.cash.sqldelight.db.QueryResult.Value(cursor.getString(0))
+        }, 0).value
+        assertEquals("b", shared)
     }
 
     @Test

@@ -284,6 +284,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Teknotes;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Pour ouvrir ton carnet sans taper ton code.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pour dicter le nom d'un son ou un commentaire, quand taper n'est pas pratique.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pour transformer ta voix en texte quand tu dictes dans ton carnet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -322,6 +323,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Teknotes;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Pour ouvrir ton carnet sans taper ton code.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Pour dicter le nom d'un son ou un commentaire, quand taper n'est pas pratique.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Pour transformer ta voix en texte quand tu dictes dans ton carnet.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;

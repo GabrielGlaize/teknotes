@@ -122,6 +122,13 @@ SELECT count(*) FROM soundsystem;
 allMemberships:
 SELECT * FROM membership;
 
+visibleMemberships:
+SELECT membership.soundsystem_id, membership.artist_id, soundsystem.name AS soundsystem_name, artist.name AS artist_name
+FROM membership
+JOIN soundsystem ON soundsystem.id = membership.soundsystem_id AND soundsystem.hidden = 0
+JOIN artist ON artist.id = membership.artist_id AND artist.hidden = 0
+ORDER BY artist.name COLLATE NOCASE;
+
 removeMember:
 DELETE FROM membership WHERE soundsystem_id = ? AND artist_id = ?;
 
@@ -222,8 +229,8 @@ DELETE FROM night_entry WHERE id = ?;
 entriesOfNight:
 SELECT
     night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
-    night_entry.rating, night_entry.comment,
-    coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
+    night_entry.rating, night_entry.comment, night_entry.label,
+    artist.name AS artist_name, soundsystem.name AS soundsystem_name
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
 LEFT JOIN artist ON artist.id = night_entry.artist_id
@@ -233,12 +240,65 @@ ORDER BY night_entry.created_at;
 allEntries:
 SELECT
     night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
-    night_entry.rating, night_entry.comment,
-    coalesce(soundsystem.name, artist.name, night_entry.label) AS display_label
+    night_entry.rating, night_entry.comment, night_entry.label,
+    artist.name AS artist_name, soundsystem.name AS soundsystem_name
 FROM night_entry
 LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
 LEFT JOIN artist ON artist.id = night_entry.artist_id
 ORDER BY night_entry.created_at;
+
+entriesOfNightById:
+SELECT
+    night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
+    night_entry.rating, night_entry.comment, night_entry.label,
+    artist.name AS artist_name, soundsystem.name AS soundsystem_name
+FROM night_entry
+LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+LEFT JOIN artist ON artist.id = night_entry.artist_id
+WHERE night_entry.id = ?;
+
+updateEntrySet:
+UPDATE night_entry SET soundsystem_id = ?, artist_id = ?, label = ? WHERE id = ?;
+
+-- Personal directory: what the user noted, whatever the server knows. ---------
+
+mySoundsystems:
+SELECT soundsystem.id, soundsystem.name, count(DISTINCT night.id) AS nights, avg(night_entry.rating) AS average, max(night.date) AS last_date
+FROM night_entry
+JOIN night ON night.id = night_entry.night_id
+JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+GROUP BY soundsystem.id;
+
+myArtists:
+SELECT artist.id, artist.name, count(DISTINCT night.id) AS nights, avg(night_entry.rating) AS average, max(night.date) AS last_date
+FROM night_entry
+JOIN night ON night.id = night_entry.night_id
+JOIN artist ON artist.id = night_entry.artist_id
+GROUP BY artist.id;
+
+notesOnSoundsystem:
+SELECT
+    night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
+    night_entry.rating, night_entry.comment, night_entry.label,
+    artist.name AS artist_name, soundsystem.name AS soundsystem_name, night.date, night.title
+FROM night_entry
+JOIN night ON night.id = night_entry.night_id
+LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+LEFT JOIN artist ON artist.id = night_entry.artist_id
+WHERE night_entry.soundsystem_id = ?
+ORDER BY night.date DESC, night_entry.created_at;
+
+notesOnArtist:
+SELECT
+    night_entry.id, night_entry.night_id, night_entry.soundsystem_id, night_entry.artist_id,
+    night_entry.rating, night_entry.comment, night_entry.label,
+    artist.name AS artist_name, soundsystem.name AS soundsystem_name, night.date, night.title
+FROM night_entry
+JOIN night ON night.id = night_entry.night_id
+LEFT JOIN soundsystem ON soundsystem.id = night_entry.soundsystem_id
+LEFT JOIN artist ON artist.id = night_entry.artist_id
+WHERE night_entry.artist_id = ?
+ORDER BY night.date DESC, night_entry.created_at;
 
 -- Outbox ---------------------------------------------------------------------
 

@@ -1,139 +1,83 @@
 package dev.gabrielglaize.teknotes.android.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.gabrielglaize.teknotes.android.R
 
-// The "Flyer" style of gabrielglaize.dev: black, chrome titles, typewriter labels, pink accent.
+// Paper and ink. The numbers carry the design: big ranks, big scores, thin rules, no colour.
 
-object Flyer {
-    val pink = Color(0xFFFF4FA3)
-    val pinkOnLight = Color(0xFFC81E72)
-    /** Field mode: the accent dimmed so the screen doesn't light up a dark field. */
-    val pinkDimmed = Color(0xFFB8558A)
-}
-
-@OptIn(ExperimentalTextApi::class)
-private fun variable(resource: Int, weight: Int, width: Float? = null) = Font(
-    resource,
-    weight = FontWeight(weight),
-    variationSettings = FontVariation.Settings(
-        *listOfNotNull(FontVariation.weight(weight), width?.let { FontVariation.width(it) }).toTypedArray(),
-    ),
-)
-
-/** Archivo, wide and heavy, for titles. */
-val ArchivoWide = FontFamily(variable(R.font.archivo, 800, width = 125f))
-val Manrope = FontFamily(
-    variable(R.font.manrope, 400),
-    variable(R.font.manrope, 600),
-    variable(R.font.manrope, 700),
-)
-val Typewriter = FontFamily(Font(R.font.special_elite))
-val Grotesk = FontFamily(variable(R.font.space_grotesk, 500))
+val Archivo = FontFamily.Default
 
 private val darkColors = darkColorScheme(
-    primary = Flyer.pink,
-    onPrimary = Color(0xFF0A0A0A),
-    background = Color(0xFF0A0A0A),
+    primary = Color(0xFFF1EEE6),
+    onPrimary = Color(0xFF121210),
+    background = Color(0xFF121210),
     onBackground = Color(0xFFF1EEE6),
-    surface = Color(0xFF0A0A0A),
+    surface = Color(0xFF121210),
     onSurface = Color(0xFFF1EEE6),
-    surfaceContainer = Color(0xFF121212),
-    surfaceContainerHigh = Color(0xFF1A1A1A),
-    onSurfaceVariant = Color(0xFF8F8C85),
-    outline = Color(0xFF262626),
-    outlineVariant = Color(0xFF262626),
+    surfaceContainer = Color(0xFF201F1C),
+    surfaceContainerHigh = Color(0xFF201F1C),
+    surfaceContainerHighest = Color(0xFF34332F),
+    onSurfaceVariant = Color(0xFF96928A),
+    outline = Color(0xFF34332F),
+    outlineVariant = Color(0xFF34332F),
+    secondaryContainer = Color(0xFF34332F),
 )
 
 private val lightColors = lightColorScheme(
-    primary = Flyer.pinkOnLight,
-    onPrimary = Color.White,
-    background = Color(0xFFF4F1EA),
-    onBackground = Color(0xFF121212),
-    surface = Color(0xFFF4F1EA),
-    onSurface = Color(0xFF121212),
-    surfaceContainer = Color(0xFFFFFFFF),
-    surfaceContainerHigh = Color(0xFFECE8DF),
-    onSurfaceVariant = Color(0xFF6B6760),
-    outline = Color(0xFFDCD6CA),
-    outlineVariant = Color(0xFFDCD6CA),
+    primary = Color(0xFF111111),
+    onPrimary = Color(0xFFF1EEE6),
+    background = Color(0xFFF1EEE6),
+    onBackground = Color(0xFF111111),
+    surface = Color(0xFFF1EEE6),
+    onSurface = Color(0xFF111111),
+    surfaceContainer = Color(0xFFE6E2D7),
+    surfaceContainerHigh = Color(0xFFE6E2D7),
+    surfaceContainerHighest = Color(0xFFD2CDC0),
+    onSurfaceVariant = Color(0xFF6E6A61),
+    outline = Color(0xFFD2CDC0),
+    outlineVariant = Color(0xFFD2CDC0),
+    secondaryContainer = Color(0xFFD2CDC0),
 )
 
 private val typography = Typography().run {
     copy(
-        bodyLarge = bodyLarge.copy(fontFamily = Manrope),
-        bodyMedium = bodyMedium.copy(fontFamily = Manrope),
-        bodySmall = bodySmall.copy(fontFamily = Manrope),
-        titleLarge = titleLarge.copy(fontFamily = Manrope, fontWeight = FontWeight.Bold),
-        titleMedium = titleMedium.copy(fontFamily = Manrope, fontWeight = FontWeight.Bold),
-        titleSmall = titleSmall.copy(fontFamily = Manrope, fontWeight = FontWeight.SemiBold),
-        labelLarge = labelLarge.copy(fontFamily = Manrope, fontWeight = FontWeight.Bold),
-        labelMedium = labelMedium.copy(fontFamily = Typewriter, letterSpacing = 1.sp),
-        labelSmall = labelSmall.copy(fontFamily = Typewriter, letterSpacing = 1.sp),
+        bodyLarge = bodyLarge.copy(fontFamily = Archivo),
+        bodyMedium = bodyMedium.copy(fontFamily = Archivo),
+        bodySmall = bodySmall.copy(fontFamily = Archivo),
+        titleLarge = titleLarge.copy(fontFamily = Archivo, fontWeight = FontWeight.Bold),
+        titleMedium = titleMedium.copy(fontFamily = Archivo, fontWeight = FontWeight.Bold),
+        titleSmall = titleSmall.copy(fontFamily = Archivo, fontWeight = FontWeight.SemiBold),
+        labelLarge = labelLarge.copy(fontFamily = Archivo, fontWeight = FontWeight.Bold),
+        labelMedium = labelMedium.copy(fontFamily = Archivo),
+        labelSmall = labelSmall.copy(fontFamily = Archivo),
     )
 }
 
-private fun Typography.scaled(factor: Float): Typography = copy(
-    bodyLarge = bodyLarge.copy(fontSize = bodyLarge.fontSize * factor, lineHeight = bodyLarge.lineHeight * factor),
-    bodyMedium = bodyMedium.copy(fontSize = bodyMedium.fontSize * factor, lineHeight = bodyMedium.lineHeight * factor),
-    bodySmall = bodySmall.copy(fontSize = bodySmall.fontSize * factor, lineHeight = bodySmall.lineHeight * factor),
-    titleLarge = titleLarge.copy(fontSize = titleLarge.fontSize * factor),
-    titleMedium = titleMedium.copy(fontSize = titleMedium.fontSize * factor),
-    labelLarge = labelLarge.copy(fontSize = labelLarge.fontSize * factor),
+private val shapes = Shapes(
+    extraSmall = RoundedCornerShape(2.dp),
+    small = RoundedCornerShape(2.dp),
+    medium = RoundedCornerShape(4.dp),
+    large = RoundedCornerShape(4.dp),
+    extraLarge = RoundedCornerShape(4.dp),
 )
 
-/**
- * [dark]: the appearance chosen in the profile (system by default).
- * [fieldMode]: dark, dimmed accent and larger text, for use in the middle of a night.
- */
+/** [dark]: the appearance chosen in the profile. */
 @Composable
-fun TeknotesTheme(dark: Boolean = isSystemInDarkTheme(), fieldMode: Boolean = false, content: @Composable () -> Unit) {
-    val colors = when {
-        fieldMode -> darkColors.copy(primary = Flyer.pinkDimmed, onPrimary = Color.Black, onSurfaceVariant = Color(0xFF8A8780))
-        dark -> darkColors
-        else -> lightColors
-    }
-    MaterialTheme(
-        colorScheme = colors,
-        typography = if (fieldMode) typography.scaled(1.18f) else typography,
-        content = content,
-    )
+fun TeknotesTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = if (dark) darkColors else lightColors, typography = typography, shapes = shapes, content = content)
 }
 
-/** Big title in brushed chrome, like the name on the portfolio. */
-@Composable
-@ReadOnlyComposable
-fun chromeTitle(): TextStyle {
-    val colors = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) {
-        listOf(Color.White, Color(0xFFCFCCC4), Color(0xFF5E5B55), Color(0xFFEBE8E0), Color(0xFF8F8C84))
-    } else {
-        listOf(Color(0xFF121212), Color(0xFF4A4741), Color(0xFF9A968E), Color(0xFF2B2925), Color(0xFF5E5B55))
-    }
-    return TextStyle(
-        fontFamily = ArchivoWide,
-        fontSize = 28.sp,
-        lineHeight = 30.sp,
-        brush = Brush.verticalGradient(colors),
-    )
-}
-
-/** Small typewriter label, upper case. */
-@Composable
-@ReadOnlyComposable
-fun flyerLabel(): TextStyle = MaterialTheme.typography.labelMedium.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+fun textStyle(size: TextUnit = 16.sp, weight: Int = 400) = TextStyle(fontFamily = Archivo, fontSize = size, fontWeight = FontWeight(weight))

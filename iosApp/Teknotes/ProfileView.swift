@@ -9,7 +9,6 @@ final class AccountModel {
     private(set) var state: AccountState = AccountStateLoading.shared
     private(set) var sync: SyncState?
     private(set) var appearance: Appearance
-    private(set) var fieldMode: Bool
     var email = ""
     var password = ""
     var code = ""
@@ -22,18 +21,21 @@ final class AccountModel {
 
     init(teknotes: Teknotes) {
         self.teknotes = teknotes
-        let current = teknotes.settings.current()
-        appearance = current.appearance
-        fieldMode = current.fieldMode
+        appearance = teknotes.settings.current().appearance
         watchers.append(teknotes.account.watchState { [weak self] state in self?.state = state })
         watchers.append(teknotes.sync.watchState { [weak self] state in self?.sync = state })
         watchers.append(teknotes.settings.watchPreferences { [weak self] preferences in
             self?.appearance = preferences.appearance
-            self?.fieldMode = preferences.fieldMode
         })
     }
 
     deinit { watchers.forEach { $0.cancel() } }
+
+    var isSignedIn: Bool { state is AccountStateSignedIn }
+    var needsPseudo: Bool { state is AccountStateNeedsPseudo }
+    var isUnavailable: Bool { state is AccountStateUnavailable }
+
+    func clearMessage() { message = nil }
 
     private func run(_ action: @escaping () async throws -> Void) {
         busy = true
@@ -58,7 +60,6 @@ final class AccountModel {
     func deleteAccount() { run { [self] in try await teknotes.account.deleteAccount() } }
 
     func setAppearance(_ value: Appearance) { teknotes.settings.setAppearance(appearance: value) }
-    func setFieldMode(_ value: Bool) { teknotes.settings.setFieldMode(enabled: value) }
 
     /// Writes the export to a temporary file, ready to share.
     func exportFile(json: Bool) -> URL? {
@@ -79,64 +80,72 @@ private struct ExportedFile: Identifiable {
     var id: URL { url }
 }
 
+/// Opens the account screens on the chosen path.
+private struct AuthRequest: Identifiable {
+    let mode: AuthSheet.Mode
+    var id: String { "\(mode)" }
+}
+
 struct ProfileView: View {
     @Bindable var model: AccountModel
     @State private var exported: ExportedFile?
     @State private var confirmDelete = false
+    @State private var auth: AuthRequest?
+    @State private var replayingTutorial = false
 
     private var title: String {
-        if let signedIn = model.state as? AccountStateSignedIn { return signedIn.pseudo }
-        if model.state is AccountStateNeedsPseudo { return "Ton pseudo" }
-        return "Sans compte"
+        (model.state as? AccountStateSignedIn)?.pseudo ?? "Profil"
+    }
+
+    private var appearanceName: (Appearance) -> String {
+        { $0 == .dark ? "Sombre" : ($0 == .light ? "Clair" : "Système") }
     }
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    ScreenHeader(label: "Profil", title: title)
-                    accountSection
-                    if let message = model.message {
-                        Text(message).foregroundStyle(Theme.pink)
-                    }
-                }
+            Page {
+                BigTitle(text: title).padding(.top, 12)
+                accountSection
 
-                Section {
-                    Picker("Affichage", selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) })) {
-                        Text("Système").tag(Appearance.system)
-                        Text("Sombre").tag(Appearance.dark)
-                        Text("Clair").tag(Appearance.light)
-                    }
-                    .pickerStyle(.segmented)
-                    Toggle(isOn: Binding(get: { model.fieldMode }, set: { model.setFieldMode($0) })) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Mode champ").font(Theme.body(16, weight: 600))
-                            Text("Écran sombre, couleurs atténuées et texte plus grand, pour noter en pleine nuit.")
-                                .font(Theme.body(13))
-                                .foregroundStyle(Theme.mute)
-                        }
-                    }
-                } header: {
-                    FlyerLabel(text: "Apparence")
-                }
+                SectionHead(text: "Affichage")
+                WordTabs(
+                    items: [Appearance.dark, Appearance.light, Appearance.system],
+                    selection: Binding(get: { model.appearance }, set: { model.setAppearance($0) }),
+                    label: appearanceName,
+                    size: 15
+                )
 
-                Section {
-                    Button("Exporter en JSON") { exported = model.exportFile(json: true).map(ExportedFile.init) }
-                    Button("Exporter en CSV") { exported = model.exportFile(json: false).map(ExportedFile.init) }
-                } header: {
-                    FlyerLabel(text: "Mon carnet")
-                }
+                SectionHead(text: "Sécurité")
+                SecuritySection(teknotes: model.teknotes)
 
-                Section {
-                    NavigationLink("Conditions d'utilisation") { LegalView(privacy: false) }
-                    NavigationLink("Confidentialité") { LegalView(privacy: true) }
-                    Text("Contact : \(Legal.shared.CONTACT_EMAIL)").font(Theme.body(14)).foregroundStyle(Theme.mute).textSelection(.enabled)
-                } header: {
-                    FlyerLabel(text: "À propos")
+                SectionHead(text: "Mon carnet")
+                RowButton(title: "Exporter en JSON") { exported = model.exportFile(json: true).map(ExportedFile.init) }
+                RowButton(title: "Exporter en CSV") { exported = model.exportFile(json: false).map(ExportedFile.init) }
+
+                SectionHead(text: "À propos")
+                RowButton(title: "Revoir le tuto") { replayingTutorial = true }
+                NavigationLink { LegalView(privacy: false) } label: { RowLabel(title: "Conditions d'utilisation") }
+                    .buttonStyle(.plain)
+                NavigationLink { LegalView(privacy: true) } label: { RowLabel(title: "Confidentialité") }
+                    .buttonStyle(.plain)
+                Text("Contact : \(Legal.shared.CONTACT_EMAIL)")
+                    .font(Theme.text(14))
+                    .foregroundStyle(Theme.mute)
+                    .textSelection(.enabled)
+                    .padding(.top, 14)
+
+                if model.isSignedIn {
+                    SectionHead(text: "Compte")
+                    RowButton(title: "Se déconnecter") { model.signOut() }.disabled(model.busy)
+                    RowButton(title: "Supprimer mon compte", color: Theme.accent) { confirmDelete = true }.disabled(model.busy)
                 }
             }
-            .flyerBackground()
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $exported) { file in ShareSheet(url: file.url) }
+            .sheet(item: $auth) { request in AuthSheet(mode: request.mode) }
+            .fullScreenCover(isPresented: $replayingTutorial) {
+                IntroView(teknotes: model.teknotes, replay: true) { replayingTutorial = false }
+            }
             .confirmationDialog("Supprimer ton compte ?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Supprimer", role: .destructive) { model.deleteAccount() }
             } message: {
@@ -148,43 +157,45 @@ struct ProfileView: View {
     @ViewBuilder
     private var accountSection: some View {
         if let signedIn = model.state as? AccountStateSignedIn {
-            Text(signedIn.email).foregroundStyle(Theme.mute)
-            Text(syncText)
-            Button("Synchroniser") { model.syncNow() }.disabled(model.busy || model.sync?.running == true)
-            NavigationLink("Personnes bloquées") { BlockedView(teknotes: model.teknotes) }
-            Button("Se déconnecter") { model.signOut() }.disabled(model.busy)
-            Button("Supprimer mon compte", role: .destructive) { confirmDelete = true }.disabled(model.busy)
-        } else if model.state is AccountStateNeedsPseudo {
-            Text("Ton pseudo est la seule chose que les autres verront de toi.").foregroundStyle(Theme.mute)
-            TextField("Pseudo", text: $model.pseudo).autocorrectionDisabled().textInputAutocapitalization(.never)
-            Toggle("J'accepte les conditions d'utilisation", isOn: $model.termsAccepted)
-            NavigationLink("Lire les conditions") { LegalView(privacy: false) }
-            Button("Valider") { model.choosePseudo() }.disabled(model.busy || model.pseudo.isEmpty || !model.termsAccepted)
-        } else if model.state is AccountStateSignedOut {
-            Text("Ton carnet marche sans compte et reste sur ce téléphone. Un compte sert à contribuer à l'annuaire partagé et à retrouver ton carnet sur un autre téléphone.")
-                .foregroundStyle(Theme.mute)
-            TextField("Email", text: $model.email)
-                .keyboardType(.emailAddress)
-                .textContentType(.emailAddress)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            if model.codeSent {
-                Text("Un code à 6 chiffres vient de partir par mail.").foregroundStyle(Theme.mute)
-                TextField("Code reçu", text: $model.code).keyboardType(.numberPad).textContentType(.oneTimeCode)
-                Button("Valider le code") { model.verifyCode() }.disabled(model.busy || model.code.isEmpty)
-                Button("Revenir") { model.codeSent = false }
-            } else {
-                SecureField("Mot de passe", text: $model.password).textContentType(.password)
-                Button("Se connecter") { model.signIn() }.disabled(model.busy || model.email.isEmpty || model.password.isEmpty)
-                Button("Créer un compte") { model.signUp() }.disabled(model.busy || model.email.isEmpty || model.password.isEmpty)
-                Button("Recevoir plutôt un code par mail") { model.sendCode() }.disabled(model.busy || model.email.isEmpty)
+            Note(text: signedIn.email).padding(.top, 4)
+            SectionHead(text: "Synchronisation")
+            HStack {
+                Text(syncText).font(Theme.text(15))
+                Spacer(minLength: 8)
+                TextAction(title: "Synchroniser") { model.syncNow() }
+                    .disabled(model.busy || model.sync?.running == true)
             }
-        } else if model.state is AccountStateUnavailable {
-            Text("Ton carnet marche sans compte et reste sur ce téléphone. Le serveur de l'annuaire n'est pas encore branché sur cette version.")
-                .foregroundStyle(Theme.mute)
+            Hairline()
+            NavigationLink { BlockedView(teknotes: model.teknotes) } label: { RowLabel(title: "Personnes bloquées") }
+                .buttonStyle(.plain)
+            messageLine
+        } else if model.needsPseudo {
+            Note(text: "Il ne te reste qu'à choisir ton pseudo.").padding(.top, 8)
+            ActionButton(title: "Choisir mon pseudo") { open(.signUp) }.padding(.top, 16)
+        } else if model.state is AccountStateSignedOut {
+            Note(text: "Ton carnet marche sans compte et reste sur ce téléphone. Un compte sert à contribuer à l'annuaire, à partager tes nuits et à retrouver ton carnet ailleurs.")
+                .padding(.top, 8)
+            ActionButton(title: "Créer un compte") { open(.signUp) }.padding(.top, 20)
+            ActionButton(title: "Se connecter", kind: .outline) { open(.signIn) }.padding(.top, 10)
+            messageLine
+        } else if model.isUnavailable {
+            Note(text: "Ton carnet marche sans compte et reste sur ce téléphone. Le serveur de l'annuaire n'est pas encore branché sur cette version.")
+                .padding(.top, 8)
         } else {
-            Text("Un instant…").foregroundStyle(Theme.mute)
+            Note(text: "Un instant…").padding(.top, 8)
         }
+    }
+
+    @ViewBuilder
+    private var messageLine: some View {
+        if let message = model.message {
+            Text(message).font(Theme.text(14, weight: 600)).foregroundStyle(Theme.accent).padding(.top, 8)
+        }
+    }
+
+    private func open(_ mode: AuthSheet.Mode) {
+        model.clearMessage()
+        auth = AuthRequest(mode: mode)
     }
 
     private var syncText: String {

@@ -1,0 +1,3 @@
+-- Sharing now takes an account. A night marked as shared without one, and never sent, goes
+-- back to private rather than becoming public the day its owner signs in.
+UPDATE night SET shared = 0 WHERE synced = 0;

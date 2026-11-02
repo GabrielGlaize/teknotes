@@ -1,109 +1,138 @@
 package dev.gabrielglaize.teknotes.android.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import dev.gabrielglaize.teknotes.Departments
 import dev.gabrielglaize.teknotes.DirectoryHit
-import dev.gabrielglaize.teknotes.Style
+import dev.gabrielglaize.teknotes.MyDirectoryEntry
 import dev.gabrielglaize.teknotes.Teknotes
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DirectoryScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigator) {
+fun DirectoryScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigator, onFirstNote: () -> Unit) {
     val model = viewModel { DirectoryViewModel(teknotes) }
     val state by model.state.collectAsStateWithLifecycle()
-    val kind = if (state.tab == DirectoryTab.SOUNDSYSTEMS) DirectoryHit.Kind.SOUNDSYSTEM else DirectoryHit.Kind.ARTIST
-    val openHit = { hit: DirectoryHit ->
-        navigator.open(if (hit.kind == DirectoryHit.Kind.SOUNDSYSTEM) Route.SoundsystemDetail(hit.id) else Route.ArtistDetail(hit.id))
+    var filtering by remember { mutableStateOf(false) }
+    val newKind = if (state.filter == DirectoryFilter.ARTISTS) DirectoryHit.Kind.ARTIST else DirectoryHit.Kind.SOUNDSYSTEM
+    val open = { kind: DirectoryHit.Kind, id: String, personal: Boolean ->
+        navigator.open(if (kind == DirectoryHit.Kind.SOUNDSYSTEM) Route.SoundsystemDetail(id, personal) else Route.ArtistDetail(id, personal))
     }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = padding) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 20.dp), contentPadding = padding) {
         item {
-            ScreenTitle("Annuaire", state.tab.label)
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                DirectoryTab.entries.forEachIndexed { index, tab ->
-                    SegmentedButton(
-                        selected = state.tab == tab,
-                        onClick = { model.show(tab) },
-                        shape = SegmentedButtonDefaults.itemShape(index, DirectoryTab.entries.size),
-                    ) { Text(tab.label) }
+            Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                BigTitle("Annuaire", Modifier.weight(1f))
+                IconButton(onClick = { navigator.open(Route.Create(newKind, state.query.trim(), nightId = null)) }) {
+                    Icon(Icons.Filled.Add, contentDescription = if (newKind == DirectoryHit.Kind.SOUNDSYSTEM) "Ajouter un soundsystem" else "Ajouter un artiste")
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = state.query,
-                onValueChange = model::search,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                placeholder = { Text("Chercher, même avec une faute") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-            )
-            Spacer(Modifier.height(8.dp))
-            StyleChips(setOfNotNull(state.style), onToggle = model::filter)
-            FilledTonalButton(
-                onClick = { navigator.open(Route.Create(kind, state.query.trim(), nightId = null)) },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Text(if (kind == DirectoryHit.Kind.SOUNDSYSTEM) "  Ajouter un soundsystem" else "  Ajouter un artiste")
+            Segments(DirectoryScope.entries, state.scope, { it.label }, { model.show(it) })
+            SearchLine("Chercher, même avec une faute", state.query, model::search, Modifier.padding(top = 10.dp))
+            Row(Modifier.padding(vertical = 10.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                DirectoryFilter.entries.forEach { filter -> Chip(filter.label, state.filter == filter) { model.show(filter) } }
+                if (state.scope == DirectoryScope.PUBLIC) {
+                    Chip(state.style?.let { "${it.label} ×" } ?: "Style ▾", state.style != null) { filtering = true }
+                }
             }
         }
-        when {
-            state.query.isNotBlank() -> items(state.results, key = { "hit-" + it.id }) { hit -> HitRow(hit, onClick = { openHit(hit) }) }
-            state.tab == DirectoryTab.SOUNDSYSTEMS -> items(state.soundsystems, key = { it.id }) { soundsystem ->
-                DirectoryRow(
-                    label = Departments.byCode(soundsystem.department)?.label ?: "Origine inconnue",
-                    name = soundsystem.name,
-                    styles = soundsystem.styles,
-                    onClick = { navigator.open(Route.SoundsystemDetail(soundsystem.id)) },
-                )
+
+        if (state.scope == DirectoryScope.MINE) {
+            if (!state.hasNotes) {
+                item { TipCard("Ton classement se remplit avec tes notes. Commence par un soundsystem ou un artiste entendu.", onFirstNote) }
+            } else if (state.ranking.isEmpty()) {
+                item { Note("Rien de tel dans ton classement. Regarde dans Public.", Modifier.padding(top = 16.dp)) }
             }
-            else -> items(state.artists, key = { it.id }) { artist ->
-                DirectoryRow(
-                    label = "Artiste",
-                    name = artist.name,
-                    styles = artist.styles,
-                    onClick = { navigator.open(Route.ArtistDetail(artist.id)) },
-                )
+            itemsIndexed(state.ranking, key = { _, entry -> entry.id }) { index, entry ->
+                RankRow(index + 1, entry) { open(entry.kind, entry.id, true) }
+            }
+        } else if (state.query.isNotBlank()) {
+            if (state.results.isEmpty()) item { Note("Pas de fiche à ce nom. Le + en haut permet de la créer.", Modifier.padding(top = 16.dp)) }
+            items(state.results, key = { "hit-" + it.id }) { hit -> HitRow(hit) { open(hit.kind, hit.id, false) } }
+        } else {
+            items(state.soundsystems, key = { it.id }) { soundsystem ->
+                PublicRow(
+                    null,
+                    soundsystem.name,
+                    listOfNotNull(
+                        state.links.artistsOfSoundsystem[soundsystem.id]?.let { "avec " + it.joinToString(", ") },
+                        soundsystem.styles.takeIf { it.isNotEmpty() }?.joinToString(", ") { it.label },
+                    ).joinToString(" · "),
+                ) { open(DirectoryHit.Kind.SOUNDSYSTEM, soundsystem.id, false) }
+            }
+            items(state.artists, key = { it.id }) { artist ->
+                PublicRow(
+                    artist.name,
+                    state.links.soundsystemsOfArtist[artist.id]?.joinToString(", "),
+                    artist.styles.joinToString(", ") { it.label },
+                ) { open(DirectoryHit.Kind.ARTIST, artist.id, false) }
             }
         }
+    }
+
+    if (filtering) {
+        StylePicker(
+            model.directory,
+            setOfNotNull(state.style),
+            { model.filter(it.firstOrNull()) },
+            onClose = { filtering = false },
+            filtering = true,
+        )
     }
 }
 
 @Composable
-private fun DirectoryRow(label: String, name: String, styles: List<Style>, onClick: () -> Unit) {
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.background),
-        overlineContent = { Text(label.uppercase(), style = flyerLabel()) },
-        headlineContent = { Text(name) },
-        supportingContent = { Text(styles.joinToString(" · ") { it.label }) },
-    )
+private fun PublicRow(artist: String?, soundsystem: String?, details: String, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(Modifier.padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            SetName(artist, soundsystem)
+            if (details.isNotEmpty()) Text(details, style = textStyle(13.sp), color = Mute, maxLines = 2)
+        }
+        Hairline()
+    }
+}
+
+/** A line of the ranking: the rank and the score are the design. */
+@Composable
+private fun RankRow(rank: Int, entry: MyDirectoryEntry, onClick: () -> Unit) {
+    val times = if (entry.nights == 1) "1 nuit" else "${entry.nights} nuits"
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Ink))
+        Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("$rank", Modifier.width(64.dp), style = textStyle(if (rank > 99) 28.sp else 42.sp, 800).copy(letterSpacing = (-2).sp))
+            Column(Modifier.weight(1f)) {
+                Text(entry.name, style = textStyle(16.sp, 700), maxLines = 1)
+                Text((if (entry.kind == DirectoryHit.Kind.ARTIST) "Artiste" else "Soundsystem") + " · $times", style = textStyle(12.sp), color = Mute)
+            }
+            ScoreText(entry.average)
+        }
+    }
 }

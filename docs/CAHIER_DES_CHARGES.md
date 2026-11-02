@@ -2,7 +2,7 @@
 
 Teknotes est un carnet de poche pour garder la trace des soundsystems et des artistes croisés en soirée tekno. L'annuaire des soundsystems et des artistes est rempli par ceux qui les croisent : personne ne le prépare à l'avance, personne ne valide chaque ajout (autosuffisance, comme dans Swikko).
 
-Décisions prises au QCM du 29 octobre 2026. Toute évolution de ce document se fait dans la même modification que le code concerné.
+Décisions prises au QCM du 29 octobre 2026, revues après le premier essai sur iPhone (2 novembre 2026 : sets artiste + soundsystem, styles libres, annuaire personnel, partage réservé aux comptes, parcours de compte, mode « champ » retiré, nouveau design), puis le même jour : design « Grands chiffres » choisi sur maquettes, classement personnel, code à l'ouverture, tuto, astuce, glissement entre écrans. Toute évolution de ce document se fait dans la même modification que le code concerné.
 
 ## 1. Principes
 
@@ -20,43 +20,55 @@ Décisions prises au QCM du 29 octobre 2026. Toute évolution de ce document se 
 
 | Dans la V1 | Plus tard (V2 et après) |
 | --- | --- |
-| Carnet perso hors ligne : soirées, soundsystems et artistes entendus, note, commentaire | Suivre un soundsystem et voir ses nouvelles apparitions |
+| Carnet perso hors ligne : soirées, sets (un artiste sur un soundsystem), note, commentaire | Suivre un soundsystem et voir ses nouvelles apparitions |
 | Bouton « J'y suis », ajout en 2 appuis, dictée vocale | Stats « ma saison » avec image à partager en story |
-| Annuaire partagé : créer, modifier (façon wiki), chercher | Rappel du lendemain « note ta soirée » |
+| Annuaire personnel (ce que j'ai noté) et annuaire public : créer, modifier (façon wiki), chercher | Rappel du lendemain « note ta soirée » |
 | Suggestions de doublons pendant la saisie, propositions de fusion | Soirée commune partagée entre plusieurs personnes |
 | Signalement, masquage automatique, blocage d'un utilisateur | Fiches revendiquées par les soundsystems et artistes (vérifiées) |
 | Compte facultatif (obligatoire pour contribuer) | Gardiens de l'annuaire choisis par la communauté |
 | Connexion email + mot de passe et code à 6 chiffres reçu par mail ; Apple et Google quand les comptes développeur existent | Anglais |
 | Export du carnet (JSON et CSV), suppression du compte | |
-| Thème sombre et clair, mode « champ » | |
+| Thème clair par défaut, thème sombre | |
+| Tuto au premier lancement, code à l'ouverture de l'app, astuce quand le carnet est vide | |
 
 Hors périmètre : carte, photos, reconnaissance de morceaux, mesure d'audience.
 
 ## 3. Écrans
 
-Trois onglets : **Carnet · Annuaire · Profil**.
+Trois onglets : **Carnet · Annuaire · Profil**, dans une barre flottante. On passe de l'un à l'autre en glissant le doigt ; les écrans ouverts par-dessus arrivent aussi en glissant.
+
+### Premier lancement et code
+- Tuto en 3 pages, à passer ou à revoir depuis le Profil, puis choix d'un code (« Plus tard » possible).
+- Code à 4 chiffres, propre au téléphone et sans rapport avec le compte. Demandé à l'ouverture et au retour dans l'app. 30 secondes d'attente après 5 erreurs. Face ID ou Touch ID en option sur iPhone ; pas encore d'empreinte sur Android.
+- Il masque le carnet à qui prend le téléphone : les données elles-mêmes ne sont pas chiffrées. Un code oublié ne se récupère pas : il faut réinstaller, et ce qui n'est pas sur un compte est perdu. C'est écrit au moment de le choisir.
 
 ### Carnet
-- Liste des soirées, la plus récente en haut : date, département, nombre de sons notés.
-- Bouton principal **« J'y suis »** : ouvre la soirée en cours, ou la crée.
+- Titre « Tek'Notes ! ». Liste des soirées par mois, la plus récente en haut : grand numéro du jour, titre, sets entendus, nombre de sets, moyenne de la nuit.
+- Carnet vide : une **astuce** propose de créer sa première note. De même dans « Mon classement ».
+- Bouton discret **« J'y suis »** en haut à droite : ouvre la soirée en cours, ou la crée.
   - Une soirée commence le soir et finit au matin : avant midi, « J'y suis » rattache à la soirée de la veille.
-- Fiche soirée : date, département, liste des soundsystems et artistes entendus, note de 1 à 5 et commentaire par entrée, commentaire général, partage (privé / partagé).
-- **Ajout en 2 appuis** : 1) champ de recherche dans l'annuaire, 2) toucher un résultat. Si rien ne correspond, « Créer "…" » en bas de la liste.
+- Fiche soirée : date, titre, **sets**, souvenirs, puis en bas le département (facultatif) et le partage.
+- Un **set** est un artiste qui joue sur un soundsystem, écrit « Rouille (Caisson Noir) » ; un seul des deux suffit si l'autre n'est pas connu, et l'app propose de le préciser. Les sets d'un même soundsystem restent groupés. Note de 1 à 5 (cinq grands chiffres) et commentaire par set.
+- **Ajout en 2 appuis** : 1) champ de recherche, 2) toucher un résultat. Chercher un artiste propose ses soundsystems, chercher un soundsystem propose ses artistes. Si rien ne correspond, « Créer l'artiste "…" » ou « Créer le soundsystem "…" » en bas de la liste. Un artiste invité se rattache à un autre soundsystem depuis le set, sans toucher à l'annuaire.
+- **Partager une nuit demande un compte** : sans compte, l'interrupteur est remplacé par un lien vers la création de compte. La règle est aussi dans le cœur partagé.
+- Un toucher hors d'un champ referme le clavier, sur tous les écrans.
 - Dictée vocale : un bouton micro dans la recherche et les commentaires (reconnaissance du système du téléphone), en plus de celle du clavier.
 
 ### Annuaire
 - Recherche tolérante aux fautes et aux accents, qui marche aussi hors ligne (« teknokrat » trouve « Teknokrates »).
-- Filtres : soundsystems / artistes, style, région d'origine.
-- Fiche soundsystem : nom, alias, région d'origine, membres, liens, styles, fusions proposées, nuits partagées où il apparaît, et avec un compte : modifier, voir l'historique, signaler un doublon, signaler un problème.
+- **Mon classement** : soundsystems et artistes de mon carnet, de la meilleure moyenne à la moins bonne (puis les plus entendus ; ce qui n'est pas noté à la fin), avec un grand numéro de rang et un grand score. Filtre Tout / Artistes / Soundsystems. Marche sans compte ni réseau.
+- **Public** : toutes les fiches, **sans aucune note**, ni dans la liste ni sur la fiche. Mêmes filtres, plus le style (liste cherchable, seulement les styles présents). Les artistes s'affichent « artiste (soundsystem) », les soundsystems avec leurs artistes.
+- Fiche personnelle (depuis le classement) : grand score, rang, toutes mes notes, lien vers la fiche publique. Fiche publique : un lien « Voir mes notes » si j'en ai.
+- Fiche soundsystem : nom, alias, styles, artistes, liens, fusions proposées, nuits partagées où il apparaît, et avec un compte : modifier, voir l'historique, signaler un doublon, signaler un problème. L'origine (département) n'apparaît qu'en petit, en bas.
 - Fiche artiste : nom, alias, soundsystems, liens, styles, mêmes actions.
 - Nuits partagées : date, département et pseudo, jamais les siennes. C'est là que le bouton « Partager » d'une nuit prend effet ; on peut y bloquer quelqu'un.
 - Création : en tapant le nom, l'app propose les fiches proches (« Tu cherches peut-être Teknokrates ? ») avant de créer.
 
 ### Profil
-- Sans compte : explication courte, boutons de connexion.
-- Choix du pseudo : acceptation obligatoire des conditions d'utilisation.
+- Sans compte : explication courte, et deux boutons qui mènent chacun à son écran : **Créer un compte** et **Se connecter** (celui-ci propose aussi un code par mail).
+- Choix du pseudo : dernière étape de la première connexion, acceptation obligatoire des conditions d'utilisation.
 - Avec compte : pseudo, état de la synchronisation, personnes bloquées, déconnexion, **suppression du compte**.
-- Dans tous les cas : affichage (système / sombre / clair), mode « champ » (sombre, accent atténué, texte plus grand ; la luminosité du téléphone n'est pas modifiée), export du carnet, conditions d'utilisation, confidentialité, contact.
+- Dans tous les cas : affichage (clair par défaut, sombre, système), code, export du carnet, revoir le tuto, conditions d'utilisation, confidentialité, contact.
 
 ## 4. Données
 
@@ -77,11 +89,11 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | Entité | Champs |
 | --- | --- |
 | Soirée | identifiant, date, département, titre facultatif, commentaire, partagée oui/non, dates |
-| Entrée | soirée, soundsystem ou artiste, note 1 à 5, commentaire |
+| Set | soirée, artiste et/ou soundsystem (au moins un des deux), note 1 à 5, commentaire |
 
-### Listes fermées
-- **Styles** : tekno, tribe, hardtek, acid, mental, frenchcore, hardcore, speedcore, raggatek, techno, minimal, psytrance, drum & bass, dub.
-- **Départements** : les 101 départements français, plus « Hors de France ».
+### Listes
+- **Styles** : liste ouverte. L'app suggère tekno, tribe, hardtek, acid, mental, frenchcore, hardcore, speedcore, raggatek, techno, minimal, psytrance, drum & bass, dub, puis ce que l'annuaire contient déjà, les plus utilisés d'abord. Tout le monde peut en ajouter (32 caractères au plus, 12 par fiche) ; un mot qui ne diffère que par la casse ou les accents reprend le style existant, et une faute de frappe propose le style proche.
+- **Départements** (liste fermée) : les 101 départements français, plus « Hors de France ».
 
 ## 5. Règles de l'annuaire (autosuffisance)
 
@@ -129,7 +141,7 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 3. Comptes et synchronisation avec Supabase.
 4. Annuaire partagé : création, modification, historique, doublons.
 5. Modération : signalement, masquage, blocage, suppression du compte.
-6. Finitions : mode « champ », thèmes, accessibilité, version de test.
+6. Finitions : thèmes, accessibilité, version de test.
 
 ## 10. Où on en est
 
@@ -140,6 +152,6 @@ Trois onglets : **Carnet · Annuaire · Profil**.
 | 3. Comptes et synchronisation | Fait pour l'email (mot de passe et code). **Apple et Google écartés pour l'instant** |
 | 4. Annuaire partagé | Fait : modifier, historique, rétablir, fusions à trois |
 | 5. Modération | Fait : signalement, blocage, conditions d'utilisation, confidentialité, suppression du compte |
-| 6. Finitions | Fait : icônes, accessibilité (taille de texte, libellés lecteur d'écran, contrastes, cibles tactiles), dictée. **Reste la mise en production** |
+| 6. Finitions | Fait : design « Grands chiffres » choisi sur maquettes (police du système, papier et encre sans couleur, rangs et scores énormes, filets), icônes, accessibilité (taille de texte, libellés lecteur d'écran, contrastes, cibles tactiles), dictée. **Reste la mise en production** |
 
 Ce qui reste à faire demande un compte, une décision ou de l'argent : `docs/AVANT_DIFFUSION.md`.

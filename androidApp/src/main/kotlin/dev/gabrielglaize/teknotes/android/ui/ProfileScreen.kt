@@ -2,7 +2,6 @@ package dev.gabrielglaize.teknotes.android.ui
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,20 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,10 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,149 +46,71 @@ fun ProfileScreen(teknotes: Teknotes, padding: PaddingValues, navigator: Navigat
     val form by model.form.collectAsStateWithLifecycle()
     val preferences by teknotes.settings.preferences().collectAsStateWithLifecycle(teknotes.settings.current())
     val context = LocalContext.current
+    var confirmDelete by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-        val title = when (val state = account) {
-            is AccountState.SignedIn -> state.pseudo
-            is AccountState.NeedsPseudo -> "Ton pseudo"
-            else -> "Sans compte"
-        }
-        ScreenTitle("Profil", title)
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(padding).padding(horizontal = 20.dp)) {
+        BigTitle((account as? AccountState.SignedIn)?.pseudo ?: "Profil", Modifier.padding(top = 12.dp))
 
-        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            when (val state = account) {
-                AccountState.Unavailable -> Explanation("Ton carnet marche sans compte et reste sur ce téléphone. Le serveur de l'annuaire n'est pas encore branché sur cette version.")
-                AccountState.Loading -> Explanation("Un instant…")
-                AccountState.SignedOut -> SignedOutForm(form, model)
-                is AccountState.NeedsPseudo -> PseudoForm(form, model, navigator)
-                is AccountState.SignedIn -> SignedInPanel(state, sync, form, model, navigator)
+        when (val state = account) {
+            AccountState.Unavailable -> Note("Ton carnet marche sans compte et reste sur ce téléphone. Le serveur de l'annuaire n'est pas encore branché sur cette version.", Modifier.padding(top = 8.dp))
+            AccountState.Loading -> Note("Un instant…", Modifier.padding(top = 8.dp))
+            AccountState.SignedOut -> {
+                Note("Ton carnet marche sans compte et reste sur ce téléphone. Un compte sert à contribuer à l'annuaire, à partager tes nuits et à retrouver ton carnet ailleurs.", Modifier.padding(top = 8.dp))
+                ActionButton("Créer un compte", Modifier.padding(top = 20.dp)) { navigator.open(Route.Auth(signUp = true)) }
+                ActionButton("Se connecter", Modifier.padding(top = 10.dp), primary = false) { navigator.open(Route.Auth(signUp = false)) }
             }
-            form.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
-        }
-
-        SectionLabel("Apparence")
-        AppearancePicker(preferences.appearance, model::setAppearance)
-        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Mode champ", style = MaterialTheme.typography.titleSmall)
-                Text(
-                    "Écran sombre, couleurs atténuées et texte plus grand, pour noter en pleine nuit.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            is AccountState.NeedsPseudo -> {
+                Note("Il ne te reste qu'à choisir ton pseudo.", Modifier.padding(top = 8.dp))
+                ActionButton("Choisir mon pseudo", Modifier.padding(top = 16.dp)) { navigator.open(Route.Auth(signUp = true)) }
             }
-            Switch(checked = preferences.fieldMode, onCheckedChange = model::setFieldMode)
+            is AccountState.SignedIn -> {
+                Note(state.email, Modifier.padding(top = 4.dp))
+                SectionHead("Synchronisation")
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(syncText(sync), Modifier.weight(1f), style = textStyle(15.sp))
+                    TextAction("Synchroniser", enabled = !form.busy && !sync.running, onClick = model::syncNow)
+                }
+                Hairline()
+                RowLine("Personnes bloquées", chevron = true) { navigator.open(Route.Blocked) }
+            }
+        }
+        form.message?.let { Text(it, Modifier.padding(top = 8.dp), style = textStyle(14.sp, 600), color = Accent) }
+
+        SectionHead("Affichage")
+        WordTabs(
+            listOf(Appearance.DARK, Appearance.LIGHT, Appearance.SYSTEM),
+            preferences.appearance,
+            { if (it == Appearance.DARK) "Sombre" else if (it == Appearance.LIGHT) "Clair" else "Système" },
+            model::setAppearance,
+            size = 15,
+        )
+
+        SectionHead("Sécurité")
+        if (teknotes.settings.hasPasscode) {
+            RowLine("Changer mon code") { navigator.open(Route.Code(CodeMode.CHANGE)) }
+            RowLine("Retirer le code") { navigator.open(Route.Code(CodeMode.REMOVE)) }
+        } else {
+            RowLine("Protéger l'app par un code") { navigator.open(Route.Code(CodeMode.CHOOSE)) }
         }
 
-        SectionLabel("Mon carnet")
-        Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { share(context, "teknotes.json", "application/json", model.exportJson()) }) { Text("Exporter en JSON") }
-            OutlinedButton(onClick = { share(context, "teknotes.csv", "text/csv", model.exportCsv()) }) { Text("Exporter en CSV") }
-        }
+        SectionHead("Mon carnet")
+        RowLine("Exporter en JSON") { share(context, "teknotes.json", "application/json", model.exportJson()) }
+        RowLine("Exporter en CSV") { share(context, "teknotes.csv", "text/csv", model.exportCsv()) }
 
-        SectionLabel("À propos")
-        Column(Modifier.padding(horizontal = 8.dp)) {
-            TextButton(onClick = { navigator.open(Route.Legal(privacy = false)) }) { Text("Conditions d'utilisation") }
-            TextButton(onClick = { navigator.open(Route.Legal(privacy = true)) }) { Text("Confidentialité") }
-            Text(
-                "Contact : ${Legal.CONTACT_EMAIL}",
-                Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        SectionHead("À propos")
+        RowLine("Revoir le tuto") { navigator.open(Route.Tutorial) }
+        RowLine("Conditions d'utilisation", chevron = true) { navigator.open(Route.Legal(privacy = false)) }
+        RowLine("Confidentialité", chevron = true) { navigator.open(Route.Legal(privacy = true)) }
+        Note("Contact : ${Legal.CONTACT_EMAIL}", Modifier.padding(top = 14.dp))
+
+        if (account is AccountState.SignedIn) {
+            SectionHead("Compte")
+            RowLine("Se déconnecter", enabled = !form.busy, onClick = model::signOut)
+            RowLine("Supprimer mon compte", color = Accent, enabled = !form.busy) { confirmDelete = true }
         }
         Spacer(Modifier.height(32.dp))
     }
-}
 
-@Composable
-private fun Explanation(text: String) {
-    Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-@Composable
-private fun SignedOutForm(form: AccountForm, model: AccountViewModel) {
-    Explanation("Ton carnet marche sans compte et reste sur ce téléphone. Un compte sert à contribuer à l'annuaire partagé et à retrouver ton carnet sur un autre téléphone.")
-    OutlinedTextField(
-        value = form.email,
-        onValueChange = { email -> model.edit { it.copy(email = email) } },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Email") },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-    )
-    if (form.codeSent) {
-        Explanation("Un code à 6 chiffres vient de partir par mail.")
-        OutlinedTextField(
-            value = form.code,
-            onValueChange = { code -> model.edit { it.copy(code = code) } },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Code reçu") },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-        )
-        Button(onClick = model::verifyCode, enabled = !form.busy && form.code.isNotBlank(), modifier = Modifier.fillMaxWidth()) { Text("Valider le code") }
-        TextButton(onClick = { model.edit { it.copy(codeSent = false, code = "") } }) { Text("Revenir") }
-    } else {
-        OutlinedTextField(
-            value = form.password,
-            onValueChange = { password -> model.edit { it.copy(password = password) } },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Mot de passe") },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(onClick = model::signIn, enabled = !form.busy && form.email.isNotBlank() && form.password.isNotBlank()) { Text("Se connecter") }
-            OutlinedButton(onClick = model::signUp, enabled = !form.busy && form.email.isNotBlank() && form.password.isNotBlank()) { Text("Créer un compte") }
-        }
-        TextButton(onClick = model::sendCode, enabled = !form.busy && form.email.isNotBlank()) { Text("Recevoir plutôt un code par mail") }
-    }
-}
-
-@Composable
-private fun PseudoForm(form: AccountForm, model: AccountViewModel, navigator: Navigator) {
-    Explanation("Ton pseudo est la seule chose que les autres verront de toi.")
-    OutlinedTextField(
-        value = form.pseudo,
-        onValueChange = { pseudo -> model.edit { it.copy(pseudo = pseudo) } },
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("Pseudo") },
-        singleLine = true,
-    )
-    Row(
-        Modifier.fillMaxWidth().toggleable(value = form.termsAccepted, role = Role.Checkbox, onValueChange = { accepted -> model.edit { it.copy(termsAccepted = accepted) } }),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Checkbox(checked = form.termsAccepted, onCheckedChange = null, modifier = Modifier.padding(12.dp))
-        Text("J'accepte les conditions d'utilisation", Modifier.weight(1f))
-    }
-    TextButton(onClick = { navigator.open(Route.Legal(privacy = false)) }) { Text("Lire les conditions") }
-    Button(onClick = model::choosePseudo, enabled = !form.busy && form.pseudo.isNotBlank() && form.termsAccepted, modifier = Modifier.fillMaxWidth()) { Text("Valider") }
-}
-
-private val timeFormat = DateTimeFormatter.ofPattern("d MMM à HH:mm", java.util.Locale.FRENCH).withZone(ZoneId.systemDefault())
-
-@Composable
-private fun SignedInPanel(state: AccountState.SignedIn, sync: SyncState, form: AccountForm, model: AccountViewModel, navigator: Navigator) {
-    var confirmDelete by remember { mutableStateOf(false) }
-    Explanation(state.email)
-    Text(
-        when {
-            sync.running -> "Synchronisation…"
-            sync.error != null -> sync.error.orEmpty()
-            sync.pending > 0 -> if (sync.pending == 1) "1 modification en attente" else "${sync.pending} modifications en attente"
-            sync.lastSyncedAt != null -> "Synchronisé le " + timeFormat.format(Instant.ofEpochMilli(sync.lastSyncedAt!!))
-            else -> "Pas encore synchronisé"
-        },
-    )
-    Button(onClick = model::syncNow, enabled = !form.busy && !sync.running, modifier = Modifier.fillMaxWidth()) { Text("Synchroniser") }
-    TextButton(onClick = { navigator.open(Route.Blocked) }) { Text("Personnes bloquées") }
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        OutlinedButton(onClick = model::signOut, enabled = !form.busy) { Text("Se déconnecter") }
-        TextButton(onClick = { confirmDelete = true }, enabled = !form.busy) { Text("Supprimer mon compte") }
-    }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -220,19 +127,14 @@ private fun SignedInPanel(state: AccountState.SignedIn, sync: SyncState, form: A
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AppearancePicker(current: Appearance, onChange: (Appearance) -> Unit) {
-    val options = listOf(Appearance.SYSTEM to "Système", Appearance.DARK to "Sombre", Appearance.LIGHT to "Clair")
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-        options.forEachIndexed { index, (appearance, label) ->
-            SegmentedButton(
-                selected = current == appearance,
-                onClick = { onChange(appearance) },
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-            ) { Text(label) }
-        }
-    }
+private val timeFormat = DateTimeFormatter.ofPattern("d MMM à HH:mm", java.util.Locale.FRENCH).withZone(ZoneId.systemDefault())
+
+private fun syncText(sync: SyncState): String = when {
+    sync.running -> "Synchronisation…"
+    sync.error != null -> sync.error.orEmpty()
+    sync.pending > 0 -> if (sync.pending == 1) "1 modification en attente" else "${sync.pending} modifications en attente"
+    sync.lastSyncedAt != null -> "Synchronisé le " + timeFormat.format(Instant.ofEpochMilli(sync.lastSyncedAt!!))
+    else -> "Pas encore synchronisé"
 }
 
 /** Writes the export to a private file and opens the system share sheet. */

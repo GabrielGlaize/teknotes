@@ -272,7 +272,7 @@ private data class RevisionRow(
             name = after["name"]?.jsonPrimitive?.content.orEmpty(),
             aliases = after["aliases"].strings(),
             department = after["department"]?.takeUnless { it is JsonNull }?.jsonPrimitive?.content,
-            styles = after["styles"].strings().mapNotNull(Style::fromId),
+            styles = after["styles"].strings().map(Style::fromId),
             links = after["links"].strings(),
         )
     }

@@ -12,7 +12,6 @@ Ce que fait la V1 et pourquoi : [`docs/CAHIER_DES_CHARGES.md`](docs/CAHIER_DES_C
 | `androidApp/` | App Android en Jetpack Compose |
 | `iosApp/` | App iPhone en SwiftUI (projet Xcode écrit à la main, dossiers synchronisés) |
 | `supabase/` | Schéma, règles d'accès, données de démo et tests SQL du back-end |
-| `design/fonts/` | Polices du style « Flyer » (licences libres jointes) |
 
 ## Prérequis
 
